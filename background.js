@@ -142,11 +142,8 @@ const VALID_ACTIONS = new Set([
 ]);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // 외부 웹페이지에서 온 메시지 차단 (content script 또는 extension 내부만 허용)
-  if (sender.origin && !sender.origin.includes('chrome-extension://') &&
-      sender.url && !sender.url.startsWith('chrome-extension://')) {
-    return;
-  }
+  // 같은 확장 프로그램에서 온 메시지만 허용 (popup, content script 모두 포함)
+  if (sender.id !== chrome.runtime.id) return;
   if (!msg.action || !VALID_ACTIONS.has(msg.action)) return;
 
   (async () => {

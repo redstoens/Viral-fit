@@ -107,23 +107,13 @@ async function extractPostData(el) {
   }
 }
 
-async function getViewCount(el, postUrl) {
-  // 현재 요소에서 조회수 찾기
+async function getViewCount(el) {
+  // 현재 요소 텍스트에서 조회수 패턴 검색
   const allText = el.innerText;
   const viewMatch = allText.match(/([\d,\.]+)\s*(만|천|k|M)?\s*(회|views?|조회)/i);
   if (viewMatch) return viewMatch[0];
-
-  // 없으면 게시물 링크 열어서 확인
-  if (!postUrl) return '0';
-  try {
-    const popup = window.open(postUrl, '_blank', 'width=600,height=800');
-    await sleep(3000);
-    const viewText = popup.document?.body?.innerText?.match(/([\d,\.]+)\s*(만|천|k|M)?\s*(회|views?)/i);
-    popup.close();
-    return viewText ? viewText[0] : '0';
-  } catch {
-    return '0';
-  }
+  // 피드에서 조회수가 안 보이는 경우 — 기본값 반환 (개별 게시물 페이지에서만 확인 가능)
+  return '0';
 }
 
 function parseViews(viewStr) {
