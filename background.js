@@ -100,27 +100,30 @@ async function fetchImageAsDataUrl(url) {
 
 // ── 캡처 저장 ─────────────────────────────────────────────
 async function saveCapture(post, index, tabId) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const safeAuthor = (post.author || 'unknown').replace(/[^a-zA-Z0-9가-힣]/g, '_');
-  const filename = `${CAPTURE_FOLDER}/${String(index).padStart(3, '0')}_${safeAuthor}_${timestamp}.png`;
+  const timestamp  = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const safeAuthor = (post.author || 'unknown').replace(/[^a-zA-Z0-9가-힣_]/g, '_');
+  const baseName   = `${String(index).padStart(3,'0')}_${safeAuthor}_${timestamp}`;
 
   try {
-    // 1순위: 탭 스크린샷 캡처
+    // 1순위: 탭 스크린샷
     if (tabId) {
-      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+      const dataUrl  = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+      const filename = `${CAPTURE_FOLDER}/${baseName}.png`;
       chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
-      return;
+      return filename;
     }
   } catch {}
 
-  // 2순위: 게시물 이미지가 있으면 해당 이미지 저장
+  // 2순위: 게시물 이미지 저장
   if (post.imageUrl) {
     try {
-      const dataUrl = await fetchImageAsDataUrl(post.imageUrl);
-      const imgFilename = filename.replace('.png', '.jpg');
-      chrome.downloads.download({ url: dataUrl, filename: imgFilename, saveAs: false });
+      const dataUrl  = await fetchImageAsDataUrl(post.imageUrl);
+      const filename = `${CAPTURE_FOLDER}/${baseName}.jpg`;
+      chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+      return filename;
     } catch {}
   }
+  return null;
 }
 
 // ── 예약 발행 스케줄러 ────────────────────────────────────
@@ -198,8 +201,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       else if (msg.action === 'saveCapture') {
-        await saveCapture(msg.post, msg.index, sender.tab?.id);
-        sendResponse({ ok: true });
+        const filename = await saveCapture(msg.post, msg.index, sender.tab?.id);
+        sendResponse({ ok: true, filename });
       }
 
       else if (msg.action === 'updateQueueStatus') {

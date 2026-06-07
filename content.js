@@ -1,8 +1,9 @@
 // ViralPick Pro — Content Script (Threads DOM 조작)
 
 let collectRunning = false;
+let collectPaused  = false;
 let collectedPosts = [];
-let collectConfig = {};
+let collectConfig  = {};
 
 // ── 메시지 수신 ───────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -14,8 +15,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     collectConfig = msg.config;
     startCollecting();
   }
+  if (msg.action === 'pauseCollect') {
+    collectPaused = true;
+  }
+  if (msg.action === 'resumeCollect') {
+    collectPaused = false;
+  }
   if (msg.action === 'stopCollect') {
     collectRunning = false;
+    collectPaused  = false;
   }
   if (msg.action === 'publishPost') {
     publishPost(msg.item);
@@ -40,8 +48,16 @@ async function startCollecting() {
       const data = await extractPostData(el);
       if (!data) continue;
 
+      // 일시중지 대기
+      while (collectPaused && collectRunning) await sleep(500);
+      if (!collectRunning) break;
+
       const views = parseViews(data.views);
-      if (views < minViews) continue;
+      if (views < minViews) {
+        chrome.runtime.sendMessage({ action: 'collectSkipped', views });
+        continue;
+      }
+      chrome.runtime.sendMessage({ action: 'collectFound', author: data.author, views });
 
       // 중복 제거
       if (collectedPosts.some(p => p.postUrl === data.postUrl)) continue;
@@ -54,6 +70,10 @@ async function startCollecting() {
         action: 'saveCapture',
         post: { ...data, views },
         index: collectedPosts.length,
+      }, res => {
+        if (res?.filename) {
+          chrome.runtime.sendMessage({ action: 'captureSaved', filename: res.filename });
+        }
       });
 
       chrome.runtime.sendMessage({

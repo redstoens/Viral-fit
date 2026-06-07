@@ -6,188 +6,242 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-<div class="app">
 
-  <!-- 헤더 -->
-  <header>
-    <div class="logo">
-      <span class="logo-icon">⚡</span>
-      <span class="logo-text">Viral<b>-fit</b></span>
+<!-- 헤더 -->
+<header class="header">
+  <div class="header-top">
+    <div class="header-title">
+      <span class="header-icon">⚡</span>
+      <span class="header-name">Viral-fit</span>
+      <span class="header-version" id="versionBadge">v1.0</span>
     </div>
-    <span class="version-badge" id="versionBadge">v1.0</span>
-  </header>
+    <button id="btnOpenThreads" class="btn-threads">Threads 열기</button>
+  </div>
+  <p class="header-sub">Threads 바이럴 수집 + AI 자동 발행기</p>
+</header>
 
-  <!-- 탭 -->
-  <nav class="tabs">
-    <button class="tab active" data-tab="collect">수집</button>
-    <button class="tab" data-tab="generate">AI 생성</button>
-    <button class="tab" data-tab="queue">발행 큐</button>
-    <button class="tab" data-tab="settings">설정</button>
-  </nav>
+<!-- 탭 -->
+<nav class="tab-nav">
+  <button class="tab active" data-tab="collect">수집</button>
+  <button class="tab" data-tab="generate">AI 생성</button>
+  <button class="tab" data-tab="queue">발행 큐</button>
+  <button class="tab" data-tab="settings">설정</button>
+</nav>
 
-  <!-- ── 수집 탭 ── -->
-  <section class="panel active" id="tab-collect">
+<!-- ══════════════ 수집 탭 ══════════════ -->
+<div class="panel active" id="tab-collect">
 
-    <!-- 설정 행 -->
-    <div class="config-row">
-      <div class="config-item">
+  <!-- 설정 그리드 -->
+  <div class="section">
+    <div class="settings-grid">
+      <div class="field-sm">
         <label>최소 조회수</label>
         <input type="number" id="minViews" value="10000" min="1000" step="1000" />
       </div>
-      <div class="config-item">
-        <label>목표 수량</label>
+      <div class="field-sm">
+        <label>목표 수집</label>
         <input type="number" id="targetCount" value="20" min="1" max="200" />
       </div>
-      <div class="config-item">
+      <div class="field-sm">
         <label>딜레이(ms)</label>
         <input type="number" id="delay" value="2000" min="1000" step="500" />
       </div>
     </div>
-
-    <!-- 버튼 -->
-    <div class="btn-row">
-      <button id="btnStartCollect" class="btn primary full">수집 시작</button>
-      <button id="btnStopCollect" class="btn danger" disabled>중지</button>
-      <button id="btnExportCSV" class="btn ghost">CSV</button>
+    <div class="folder-row">
+      <span class="folder-icon">📂</span>
+      <span class="folder-label">저장 폴더:</span>
+      <span class="folder-path">Downloads / viral-fit_captures</span>
     </div>
+  </div>
 
-    <!-- 진행 상황 -->
-    <div class="progress-card" id="progressCard">
-      <div class="progress-header">
-        <span id="progressLabel">대기 중</span>
-        <span id="progressCount" class="progress-count">0 / 0</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="progressFill" style="width:0%"></div>
-      </div>
-      <div class="progress-detail" id="progressDetail"></div>
+  <!-- 진행상황 -->
+  <div class="section">
+    <div class="progress-info">
+      <span class="progress-text" id="progressLabel">대기 중</span>
+      <span class="progress-count" id="progressCount">0 / 0</span>
     </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="progress-detail" id="progressDetail"></div>
+  </div>
 
-    <!-- 수집 목록 -->
-    <div class="list-header">
+  <!-- 제어 버튼 -->
+  <div class="section btn-row">
+    <button id="btnStartCollect" class="btn btn-start">▶ 수집 시작</button>
+    <button id="btnPauseCollect" class="btn btn-pause" disabled>⏸ 일시중지</button>
+    <button id="btnStopCollect"  class="btn btn-stop"  disabled>■ 중지</button>
+  </div>
+
+  <!-- 로그 -->
+  <div class="section">
+    <div class="section-title">
+      <span>실시간 로그</span>
+      <button id="btnClearLog" class="btn-link">지우기</button>
+    </div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <!-- 수집 목록 -->
+  <div class="section">
+    <div class="section-title">
       <span id="collectedCount">수집된 게시물 0개</span>
+      <div class="export-btns">
+        <button id="btnExportCSV"  class="btn btn-sm btn-outline">CSV</button>
+        <button id="btnExportJSON" class="btn btn-sm btn-outline">JSON</button>
+        <button id="btnClearData"  class="btn btn-sm btn-danger-outline">초기화</button>
+      </div>
     </div>
-    <div class="post-list" id="collectedList"></div>
-
-  </section>
-
-  <!-- ── AI 생성 탭 ── -->
-  <section class="panel" id="tab-generate">
-
-    <div class="field">
-      <label>기반 게시물</label>
-      <select id="sourcePost">
-        <option value="">전체 분석 (패턴 종합)</option>
-      </select>
+    <div class="preview-table-wrap">
+      <table class="preview-table">
+        <thead>
+          <tr><th>#</th><th>작성자</th><th>조회수</th><th>본문</th></tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
     </div>
+  </div>
 
-    <div class="field">
-      <label>AI 모델</label>
+</div>
+
+<!-- ══════════════ AI 생성 탭 ══════════════ -->
+<div class="panel" id="tab-generate">
+
+  <div class="section">
+    <label class="field-label">기반 게시물</label>
+    <select id="sourcePost">
+      <option value="">전체 분석 (패턴 종합)</option>
+    </select>
+  </div>
+
+  <div class="section two-col">
+    <div>
+      <label class="field-label">AI 모델</label>
       <select id="aiModel">
         <option value="claude">Claude (Anthropic)</option>
         <option value="gpt4">GPT-4o (OpenAI)</option>
       </select>
     </div>
-
-    <div class="field">
-      <label>추가 지시 <span class="hint">선택사항</span></label>
-      <textarea id="userPrompt" rows="2" placeholder="예: 공감 가는 톤으로, 마지막에 질문 추가"></textarea>
+    <div>
+      <label class="field-label">어조 / 스타일</label>
+      <select id="toneSelect">
+        <option value="">기본</option>
+        <option value="공감 가는 톤으로">공감형</option>
+        <option value="유머러스하고 가벼운 톤으로">유머형</option>
+        <option value="정보 전달 위주로">정보형</option>
+        <option value="감성적이고 따뜻한 톤으로">감성형</option>
+      </select>
     </div>
+  </div>
 
-    <button id="btnGenerate" class="btn primary full">AI로 글 생성</button>
+  <div class="section">
+    <label class="field-label">추가 지시사항 <span class="hint">선택</span></label>
+    <textarea id="userPrompt" rows="2" placeholder="예: 마지막에 질문 추가, 500자 이내"></textarea>
+  </div>
 
-    <div class="loading-bar hidden" id="generateLoading">
-      <div class="loading-inner"></div>
+  <button id="btnGenerate" class="btn btn-primary full">AI로 글 생성</button>
+
+  <div class="loading-bar hidden" id="generateLoading"><div class="loading-inner"></div></div>
+
+  <div class="section hidden" id="generatedSection">
+    <label class="field-label">생성된 글</label>
+    <textarea id="generatedText" rows="6"></textarea>
+    <div class="btn-row mt8">
+      <button id="btnRegenerate"  class="btn btn-outline">↺ 다시 생성</button>
+      <button id="btnSendToQueue" class="btn btn-primary">큐에 추가 →</button>
     </div>
+  </div>
 
-    <div class="generated-box hidden" id="generatedSection">
-      <label>생성된 글</label>
-      <textarea id="generatedText" rows="6"></textarea>
-      <div class="btn-row mt8">
-        <button id="btnRegenerate" class="btn ghost">다시 생성</button>
-        <button id="btnSendToQueue" class="btn primary">큐에 추가 →</button>
-      </div>
+</div>
+
+<!-- ══════════════ 발행 큐 탭 ══════════════ -->
+<div class="panel" id="tab-queue">
+
+  <div class="compose-box section">
+    <label class="field-label">게시글</label>
+    <textarea id="composeText" rows="4" placeholder="발행할 내용을 입력하세요..."></textarea>
+
+    <label class="field-label mt8">이미지 첨부</label>
+    <div class="btn-row gap6">
+      <button id="btnImageUpload" class="btn btn-sm btn-outline">📁 업로드</button>
+      <button id="btnImageViral"  class="btn btn-sm btn-outline">🔗 바이럴</button>
+      <button id="btnImageDalle"  class="btn btn-sm btn-outline">🎨 DALL-E</button>
     </div>
+    <input type="file" id="imageFileInput" accept="image/*" multiple style="display:none" />
 
-  </section>
+    <div id="imagePreviewList" class="preview-row mt8"></div>
 
-  <!-- ── 발행 큐 탭 ── -->
-  <section class="panel" id="tab-queue">
-
-    <div class="compose-card">
-      <div class="field">
-        <label>게시글</label>
-        <textarea id="composeText" rows="4" placeholder="발행할 내용을 입력하세요..."></textarea>
-      </div>
-
-      <div class="field">
-        <label>이미지 첨부</label>
-        <div class="image-btns">
-          <button id="btnImageUpload" class="btn ghost sm">📁 업로드</button>
-          <button id="btnImageViral" class="btn ghost sm">🔗 바이럴</button>
-          <button id="btnImageDalle" class="btn ghost sm">🎨 DALL-E</button>
-        </div>
-        <input type="file" id="imageFileInput" accept="image/*" multiple style="display:none" />
-      </div>
-
-      <div id="imagePreviewList" class="preview-row"></div>
-
-      <!-- DALL-E 패널 -->
-      <div id="dallePanel" class="dalle-panel hidden">
-        <input type="text" id="dallePrompt" placeholder="이미지 설명 (영어 권장)" />
-        <select id="dalleSize">
+    <!-- DALL-E 패널 -->
+    <div id="dallePanel" class="dalle-panel hidden">
+      <input type="text" id="dallePrompt" placeholder="이미지 설명 (영어 권장)" />
+      <div class="btn-row gap6 mt6">
+        <select id="dalleSize" style="flex:1">
           <option value="1024x1024">정사각형</option>
           <option value="1024x1792">세로형</option>
           <option value="1792x1024">가로형</option>
         </select>
-        <button id="btnGenerateImage" class="btn primary sm">생성</button>
-        <div class="loading-bar hidden" id="dalleLoading"><div class="loading-inner"></div></div>
+        <button id="btnGenerateImage" class="btn btn-primary btn-sm">생성</button>
       </div>
-
-      <div class="schedule-row">
-        <input type="datetime-local" id="scheduleTime" />
-        <button id="btnAddQueue" class="btn ghost sm">예약</button>
-        <button id="btnPublishNow" class="btn primary sm">즉시 발행</button>
-      </div>
+      <div class="loading-bar hidden mt6" id="dalleLoading"><div class="loading-inner"></div></div>
     </div>
 
-    <div class="list-header">
+    <div class="schedule-row mt8">
+      <label class="field-label">발행 시간</label>
+      <div class="btn-row gap6">
+        <input type="datetime-local" id="scheduleTime" style="flex:1" />
+        <button id="btnAddQueue"    class="btn btn-outline btn-sm">예약</button>
+        <button id="btnPublishNow"  class="btn btn-primary btn-sm">즉시 발행</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
       <span>예약 목록</span>
-      <button id="btnClearQueue" class="btn danger sm">전체 삭제</button>
+      <button id="btnClearQueue" class="btn btn-sm btn-danger-outline">전체 삭제</button>
     </div>
     <div class="queue-list" id="queueList"></div>
+  </div>
 
-  </section>
+</div>
 
-  <!-- ── 설정 탭 ── -->
-  <section class="panel" id="tab-settings">
+<!-- ══════════════ 설정 탭 ══════════════ -->
+<div class="panel" id="tab-settings">
 
-    <div class="field">
-      <label>Anthropic API 키 <span class="hint">Claude</span></label>
-      <input type="password" id="claudeApiKey" placeholder="sk-ant-..." />
-    </div>
-    <div class="field">
-      <label>OpenAI API 키 <span class="hint">GPT-4 / DALL-E</span></label>
-      <input type="password" id="openaiApiKey" placeholder="sk-..." />
-    </div>
-    <div class="field">
-      <label>기본 AI 모델</label>
+  <div class="section">
+    <label class="field-label">Anthropic API 키 <span class="hint">Claude</span></label>
+    <input type="password" id="claudeApiKey" placeholder="sk-ant-..." />
+  </div>
+  <div class="section">
+    <label class="field-label">OpenAI API 키 <span class="hint">GPT-4 / DALL-E</span></label>
+    <input type="password" id="openaiApiKey" placeholder="sk-..." />
+  </div>
+  <div class="section two-col">
+    <div>
+      <label class="field-label">기본 AI 모델</label>
       <select id="defaultModel">
         <option value="claude">Claude</option>
         <option value="gpt4">GPT-4o</option>
       </select>
     </div>
-    <div class="field">
-      <label>발행 간 딜레이 (초)</label>
+    <div>
+      <label class="field-label">발행 간 딜레이(초)</label>
       <input type="number" id="publishDelay" value="30" min="10" />
     </div>
+  </div>
 
-    <button id="btnSaveSettings" class="btn primary full">저장</button>
-    <div class="toast hidden" id="settingsMsg"></div>
+  <button id="btnSaveSettings" class="btn btn-primary full">설정 저장</button>
+  <div class="toast hidden" id="settingsMsg"></div>
 
-  </section>
+  <div class="info-box section">
+    <p class="info-title">💡 API 키 발급</p>
+    <p>• Claude: console.anthropic.com</p>
+    <p>• OpenAI: platform.openai.com/api-keys</p>
+    <p class="info-note">DALL-E 이미지 생성에는 OpenAI 키가 필요합니다.</p>
+  </div>
 
 </div>
+
 <script src="popup.js"></script>
 </body>
 </html>
