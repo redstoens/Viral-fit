@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Viral-fit - Thread 바이럴 구조 분석기",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Threads 바이럴 수집 + AI 자동 발행기 | Viral-fit",
   "permissions": [
     "storage",
