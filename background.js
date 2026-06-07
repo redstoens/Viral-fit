@@ -318,21 +318,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       else if (msg.action === 'captureTab') {
-        // viral-pick 방식: content.js(피드 탭)에서 요청 → 피드 탭 전체 캡처 후 dataUrl 반환
+        // viral-pick과 동일한 구조:
+        // 피드 창을 포커스한 뒤 captureVisibleTab으로 정확히 캡처
         const senderTab = sender.tab;
         if (!senderTab) { sendResponse(null); return; }
         try {
-          // Chrome 116+: captureTab — 탭·창 포커스 없이 캡처 (팝업 유지)
-          const dataUrl = await chrome.tabs.captureTab(senderTab.id, { format: 'png' });
+          await chrome.windows.update(senderTab.windowId, { focused: true });
+          await new Promise(r => setTimeout(r, 200));
+          const dataUrl = await chrome.tabs.captureVisibleTab(senderTab.windowId, {
+            format: 'png',
+            quality: 100,
+          });
           sendResponse(dataUrl);
         } catch {
-          // fallback: captureVisibleTab — focused: true 제거하여 팝업이 닫히지 않도록
-          try {
-            const dataUrl = await chrome.tabs.captureVisibleTab(senderTab.windowId, { format: 'png', quality: 100 });
-            sendResponse(dataUrl);
-          } catch {
-            sendResponse(null);
-          }
+          sendResponse(null);
         }
       }
 

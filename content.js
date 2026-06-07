@@ -363,27 +363,33 @@ async function getViewCount(el, postUrl) {
   return result?.views || 0;
 }
 
-// ── 피드에서 게시물 박스 캡처 (viral-pick 방식) ──────────
+// ── 피드에서 게시물 박스 캡처 (viral-pick 구조 그대로) ──
 async function capturePostInFeed(container, author, views, idx) {
   try {
-    // block:'start' — 게시물 상단이 뷰포트 상단에 맞춰져 잘리지 않음
-    container.scrollIntoView({ behavior: 'instant', block: 'start' });
-    await new Promise(r => setTimeout(r, 500));
+    // 1. 게시물을 화면 중앙으로 스크롤 (viral-pick: block:'center')
+    container.scrollIntoView({ behavior: 'instant', block: 'center' });
+    await new Promise(r => setTimeout(r, 300));
 
-    // 캡처 기준 요소: article(실제 카드)을 우선 사용
-    // [data-pressable-container] 같은 넓은 래퍼 대신 내부 article을 쓰면
-    // 게시물 카드만 정확히 크롭할 수 있음
-    const postEl =
-      (container.tagName === 'ARTICLE' ? container : null) ||
-      container.querySelector('article')                   ||
-      container.querySelector('[role="article"]')         ||
-      container;
+    // 2. 패널 임시 숨김 — 오버레이가 스크린샷에 찍히지 않도록
+    const panelWas  = vfPanel     ? vfPanel.style.display    : null;
+    const toggleWas = vfToggleBtn ? vfToggleBtn.style.display : null;
+    if (vfPanel)     vfPanel.style.display    = 'none';
+    if (vfToggleBtn) vfToggleBtn.style.display = 'none';
+    await new Promise(r => setTimeout(r, 200));
 
-    const rect = postEl.getBoundingClientRect();
+    // 3. rect 취득 — 패널 없는 상태·캡처 직전 (viral-pick과 동일)
+    const rect = container.getBoundingClientRect();
 
+    // 4. background에 캡처 요청 (focused + captureVisibleTab)
     const dataUrl = await chrome.runtime.sendMessage({ action: 'captureTab' });
+
+    // 5. 패널 복원
+    if (vfPanel     && panelWas  !== null) vfPanel.style.display    = panelWas;
+    if (vfToggleBtn && toggleWas !== null) vfToggleBtn.style.display = toggleWas;
+
     if (!dataUrl) return null;
 
+    // 6. 크롭
     const cropped = await cropToElement(dataUrl, rect);
     if (!cropped) return null;
 
@@ -394,6 +400,9 @@ async function capturePostInFeed(container, author, views, idx) {
     chrome.runtime.sendMessage({ action: 'download', dataUrl: cropped, filename });
     return filename;
   } catch {
+    // 예외 시에도 패널 복원
+    if (vfPanel)     vfPanel.style.display = 'flex';
+    if (vfToggleBtn) vfToggleBtn.style.display = '';
     return null;
   }
 }
