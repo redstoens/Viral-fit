@@ -32,9 +32,18 @@
         "https://www.threads.com/*",
         "https://threads.com/*"
       ],
-      "js": [
-        "content.js"
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.threads.net/*",
+        "https://threads.net/*",
+        "https://www.threads.com/*",
+        "https://threads.com/*"
       ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],

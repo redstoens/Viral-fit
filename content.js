@@ -1,9 +1,29 @@
-// ViralPick Pro — Content Script (Threads DOM 조작)
+// Viral-fit — Content Script (Threads DOM 조작)
 
 let collectRunning = false;
 let collectPaused  = false;
 let collectedPosts = [];
 let collectConfig  = {};
+
+// ── GraphQL 조회수 캐시 ───────────────────────────────────
+// inject.js(MAIN world)가 fetch를 가로채서 CustomEvent로 전달
+const viewCountCache = new Map(); // postCode → viewCount
+
+window.addEventListener('__vf_views__', e => {
+  let added = 0;
+  for (const { code, views } of (e.detail || [])) {
+    if (views > 0 && !viewCountCache.has(code)) {
+      viewCountCache.set(code, views);
+      added++;
+    }
+  }
+  if (added > 0) {
+    chrome.runtime.sendMessage({
+      action: 'logMsg',
+      text: `[GraphQL] 조회수 ${added}개 캐시 업데이트 (누적 ${viewCountCache.size}개)`,
+    });
+  }
+});
 
 // ── 메시지 수신 ───────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -171,14 +191,29 @@ function extractViewsFromText(text) {
 }
 
 async function getViewCount(el, postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
-  // 1단계: 피드 요소에서 직접 읽기 (캡처 불필요 — 탭 미오픈)
+  // ── Layer 1: 피드 DOM 텍스트 직접 읽기 ──────────────────
   const inFeed = extractViewsFromText(el.innerText || '');
   if (inFeed > 0) return { views: inFeed, captureFilename: null };
 
-  // 2단계: 백그라운드 탭 열어서 조회수 확인 + 기준 충족 시 해당 탭 캡처
-  if (!postUrl) return { views: 0, captureFilename: null };
+  // ── Layer 2: GraphQL 캐시 (빠름·정확, 탭 없음) ───────────
+  // URL에서 post code 추출: /@user/post/CODE
+  const postCode = postUrl.split('/post/')[1]?.split(/[?/#]/)[0];
+  if (postCode && viewCountCache.has(postCode)) {
+    const views = viewCountCache.get(postCode);
+    chrome.runtime.sendMessage({
+      action: 'logMsg',
+      text: `[캐시] ${postCode}: ${views.toLocaleString()}회`,
+    });
+    // 캐시 히트는 별도 탭 없음 → captureFilename null
+    return { views, captureFilename: null };
+  }
 
-  chrome.runtime.sendMessage({ action: 'logMsg', text: `조회수 확인 중: ${postUrl.split('/').pop()}` });
+  // ── Layer 3: 백그라운드 탭 (캐시 미스 fallback) ──────────
+  if (!postUrl) return { views: 0, captureFilename: null };
+  chrome.runtime.sendMessage({
+    action: 'logMsg',
+    text: `[탭] 확인 중: ${postUrl.split('/').pop()}`,
+  });
 
   const result = await chrome.runtime.sendMessage({
     action: 'getViewCount',
