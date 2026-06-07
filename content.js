@@ -106,12 +106,15 @@ function findPostElements() {
 
 async function extractPostData(el, minViews = 0, captureIndex = 0) {
   try {
-    // 텍스트 추출 — 여러 셀렉터 순서대로 시도
-    const textEl = el.querySelector(
-      '[data-pressable-container] span[dir="auto"], ' +
-      'div[dir="auto"] > span, ' +
-      'span[dir="auto"]'
-    );
+    // 텍스트 추출 — 앵커(username 링크) 내부 요소는 제외
+    let textEl = null;
+    const textCandidates = el.querySelectorAll('div[dir="auto"], span[dir="auto"]');
+    for (const candidate of textCandidates) {
+      // a[href] 내부는 username/링크이므로 건너뜀
+      if (candidate.closest('a[href]')) continue;
+      const txt = (candidate.innerText || '').trim();
+      if (txt.length > 0) { textEl = candidate; break; }
+    }
     const text = textEl ? textEl.innerText.trim() : '';
 
     // 작성자 추출
