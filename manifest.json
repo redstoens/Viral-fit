@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Viral-fit - Thread 바이럴 구조 분석기",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Threads 바이럴 수집 + AI 자동 발행기 | Viral-fit",
   "permissions": [
     "storage",
@@ -32,7 +32,9 @@
         "https://www.threads.com/*",
         "https://threads.com/*"
       ],
-      "js": ["inject.js"],
+      "js": [
+        "inject.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
@@ -43,7 +45,9 @@
         "https://www.threads.com/*",
         "https://threads.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
