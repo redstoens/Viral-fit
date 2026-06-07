@@ -109,6 +109,14 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: #374151;
+  gap: 8px;
+}
+
+.section-title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── 폼 ── */
@@ -401,7 +409,7 @@ textarea { resize: vertical; }
 .td-views  { color: #8b5cf6; font-weight: 600; white-space: nowrap; }
 .td-text   { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #4b5563; }
 
-.export-btns { display: flex; gap: 4px; }
+.export-btns { display: flex; gap: 4px; flex-shrink: 0; }
 
 /* ── 내보내기 없음 표시 ── */
 .empty-row td { text-align: center; color: #9ca3af; padding: 16px; }
