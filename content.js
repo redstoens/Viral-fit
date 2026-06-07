@@ -361,25 +361,18 @@ async function getViewCount(el, postUrl) {
 // ── 피드에서 게시물 박스 캡처 (viral-pick 방식) ──────────
 async function capturePostInFeed(container, author, views, idx) {
   try {
-    // 1. 게시물을 화면 중앙으로 스크롤
     container.scrollIntoView({ behavior: 'instant', block: 'center' });
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500)); // 스크롤·렌더 완료 대기
 
-    // 2. 피드 탭 전체 캡처 요청 (background → captureTab API)
+    // rect는 캡처 직전에 취득 — 캡처 시점과 동일한 위치 보장
+    const rect = container.getBoundingClientRect();
+
     const dataUrl = await chrome.runtime.sendMessage({ action: 'captureTab' });
     if (!dataUrl) return null;
 
-    // 3. 게시물 컨테이너 좌표로 크롭
-    const rect = container.getBoundingClientRect();
-    const dpr  = window.devicePixelRatio || 1;
-    const cropped = await cropImage(dataUrl, {
-      x: Math.max(0, rect.left * dpr),
-      y: Math.max(0, rect.top  * dpr),
-      w: rect.width  * dpr,
-      h: rect.height * dpr,
-    });
+    const cropped = await cropToElement(dataUrl, rect);
+    if (!cropped) return null;
 
-    // 4. 파일명 생성 및 다운로드 요청
     const safeAuthor = (author || 'unknown').replace(/[^a-zA-Z0-9가-힣_@]/g, '').slice(0, 20);
     const viewStr    = String(views).replace(/,/g, '');
     const filename   = `viral-fit_captures/${String(idx).padStart(3, '0')}_${safeAuthor}_${viewStr}views.png`;
@@ -391,17 +384,31 @@ async function capturePostInFeed(container, author, views, idx) {
   }
 }
 
-function cropImage(dataUrl, { x, y, w, h }) {
+// 실제 스크린샷 크기 기준으로 배율 계산 후 크롭
+// devicePixelRatio 대신 img.width / window.innerWidth를 사용해 정확도를 높임
+function cropToElement(dataUrl, rect) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
+      // 캡처 이미지의 실제 배율 (CSS픽셀 → 이미지픽셀)
+      const scaleX = img.width  / window.innerWidth;
+      const scaleY = img.height / window.innerHeight;
+
+      const x = Math.max(0, Math.round(rect.left   * scaleX));
+      const y = Math.max(0, Math.round(rect.top    * scaleY));
+      // 뷰포트 경계를 넘지 않도록 클램프 (검은 여백 방지)
+      const w = Math.min(Math.round(rect.width  * scaleX), img.width  - x);
+      const h = Math.min(Math.round(rect.height * scaleY), img.height - y);
+
+      if (w <= 0 || h <= 0) { resolve(null); return; }
+
       const canvas = document.createElement('canvas');
       canvas.width  = w;
       canvas.height = h;
       canvas.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
       resolve(canvas.toDataURL('image/png'));
     };
-    img.onerror = () => resolve(dataUrl); // 크롭 실패 시 전체 이미지
+    img.onerror = () => resolve(null);
     img.src = dataUrl;
   });
 }
