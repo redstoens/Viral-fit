@@ -271,10 +271,15 @@ async function startCollecting() {
 }
 
 function findPostElements() {
-  // Threads 게시물 컨테이너 셀렉터 (UI 변경 시 업데이트 필요)
-  return Array.from(document.querySelectorAll(
+  const all = document.querySelectorAll(
     'article, [data-pressable-container], div[role="article"]'
-  ));
+  );
+  // 부모-자식 중복 제거: 다른 후보 요소의 자손인 요소는 제외
+  // (예: [data-pressable-container] 안에 article이 있으면 article만 남김)
+  const candidates = Array.from(all);
+  return candidates.filter(el =>
+    !candidates.some(other => other !== el && other.contains(el))
+  );
 }
 
 async function extractPostData(el) {
@@ -361,11 +366,20 @@ async function getViewCount(el, postUrl) {
 // ── 피드에서 게시물 박스 캡처 (viral-pick 방식) ──────────
 async function capturePostInFeed(container, author, views, idx) {
   try {
-    container.scrollIntoView({ behavior: 'instant', block: 'center' });
-    await new Promise(r => setTimeout(r, 500)); // 스크롤·렌더 완료 대기
+    // block:'start' — 게시물 상단이 뷰포트 상단에 맞춰져 잘리지 않음
+    container.scrollIntoView({ behavior: 'instant', block: 'start' });
+    await new Promise(r => setTimeout(r, 500));
 
-    // rect는 캡처 직전에 취득 — 캡처 시점과 동일한 위치 보장
-    const rect = container.getBoundingClientRect();
+    // 캡처 기준 요소: article(실제 카드)을 우선 사용
+    // [data-pressable-container] 같은 넓은 래퍼 대신 내부 article을 쓰면
+    // 게시물 카드만 정확히 크롭할 수 있음
+    const postEl =
+      (container.tagName === 'ARTICLE' ? container : null) ||
+      container.querySelector('article')                   ||
+      container.querySelector('[role="article"]')         ||
+      container;
+
+    const rect = postEl.getBoundingClientRect();
 
     const dataUrl = await chrome.runtime.sendMessage({ action: 'captureTab' });
     if (!dataUrl) return null;
