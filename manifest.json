@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "ViralPick Pro",
+  "version": "1.0",
+  "description": "Threads 바이럴 수집 + AI 자동 발행기",
+  "permissions": [
+    "storage",
+    "alarms",
+    "downloads",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.threads.net/*",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*",
+    "https://api.openai.com/v1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.threads.net/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none';"
+  }
+}
