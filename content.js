@@ -49,10 +49,10 @@ async function startCollecting() {
       while (collectPaused && collectRunning) await sleep(500);
       if (!collectRunning) break;
 
-      const data = await extractPostData(el);
+      const nextIndex = collectedPosts.length + 1;
+      const data = await extractPostData(el, minViews, nextIndex);
       if (!data) continue;
 
-      // parseViews가 이미 숫자로 반환되므로 그대로 사용
       const views = typeof data.views === 'number' ? data.views : parseViews(String(data.views));
       if (views < minViews) {
         chrome.runtime.sendMessage({ action: 'collectSkipped', views });
@@ -66,16 +66,10 @@ async function startCollecting() {
       collectedPosts.push({ ...data, views });
       await chrome.storage.local.set({ collectedPosts });
 
-      // 캡처 저장 요청
-      chrome.runtime.sendMessage({
-        action: 'saveCapture',
-        post: { ...data, views },
-        index: collectedPosts.length,
-      }, res => {
-        if (res?.filename) {
-          chrome.runtime.sendMessage({ action: 'captureSaved', filename: res.filename });
-        }
-      });
+      // 백그라운드 탭 캡처 결과 (background.js에서 이미 저장 완료)
+      if (data.captureFilename) {
+        chrome.runtime.sendMessage({ action: 'captureSaved', filename: data.captureFilename });
+      }
 
       chrome.runtime.sendMessage({
         action: 'collectProgress',
@@ -110,7 +104,7 @@ function findPostElements() {
   ));
 }
 
-async function extractPostData(el) {
+async function extractPostData(el, minViews = 0, captureIndex = 0) {
   try {
     // 텍스트 추출 — 여러 셀렉터 순서대로 시도
     const textEl = el.querySelector(
@@ -144,10 +138,10 @@ async function extractPostData(el) {
 
     if (!postUrl) return null; // URL 없으면 게시물 아님
 
-    // 조회수 — 피드에서 읽기 시도 후, 없으면 백그라운드 탭으로 확인
-    const views = await getViewCount(el, postUrl);
+    // 조회수 + 캡처 (기준 충족 시 백그라운드 탭에서 바로 캡처)
+    const { views, captureFilename } = await getViewCount(el, postUrl, minViews, captureIndex, author);
 
-    return { text, author, imageUrl, postUrl, views };
+    return { text, author, imageUrl, postUrl, views, captureFilename };
   } catch {
     return null;
   }
@@ -173,22 +167,25 @@ function extractViewsFromText(text) {
   return 0;
 }
 
-async function getViewCount(el, postUrl) {
-  // 1단계: 피드 요소에서 직접 읽기
+async function getViewCount(el, postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
+  // 1단계: 피드 요소에서 직접 읽기 (캡처 불필요 — 탭 미오픈)
   const inFeed = extractViewsFromText(el.innerText || '');
-  if (inFeed > 0) return inFeed;
+  if (inFeed > 0) return { views: inFeed, captureFilename: null };
 
-  // 2단계: 백그라운드 탭으로 개별 게시물 페이지를 열어서 읽기
-  if (!postUrl) return 0;
+  // 2단계: 백그라운드 탭 열어서 조회수 확인 + 기준 충족 시 해당 탭 캡처
+  if (!postUrl) return { views: 0, captureFilename: null };
 
   chrome.runtime.sendMessage({ action: 'logMsg', text: `조회수 확인 중: ${postUrl.split('/').pop()}` });
 
   const result = await chrome.runtime.sendMessage({
     action: 'getViewCount',
     postUrl,
+    minViews,
+    captureIndex,
+    author,
   });
 
-  return result?.views || 0;
+  return result || { views: 0, captureFilename: null };
 }
 
 function parseViews(viewStr) {

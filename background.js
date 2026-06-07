@@ -128,76 +128,83 @@ function parseViewsInTab() {
   return 0;
 }
 
-async function getViewCountFromUrl(postUrl) {
+// ── 조회수 확인 + 기준 충족 시 캡처 (백그라운드 탭) ────────
+async function getViewCountFromUrl(postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
   return new Promise(resolve => {
     let tabId = null;
     let done  = false;
 
-    const finish = (views) => {
+    const finish = (result) => {
       if (done) return;
       done = true;
       chrome.tabs.onUpdated.removeListener(onUpdated);
       if (tabId) chrome.tabs.remove(tabId).catch(() => {});
-      resolve(views);
+      resolve(result);
     };
 
-    // 10초 타임아웃
-    const timer = setTimeout(() => finish(0), 10000);
+    // 15초 타임아웃
+    const timer = setTimeout(() => finish({ views: 0, captureFilename: null }), 15000);
 
     const onUpdated = async (id, info) => {
       if (id !== tabId || info.status !== 'complete') return;
 
-      // React 렌더링 대기 (2.5초)
+      // React 렌더링 대기
       await new Promise(r => setTimeout(r, 2500));
 
       try {
+        // 1. 조회수 읽기
         const results = await chrome.scripting.executeScript({
           target: { tabId },
           func: parseViewsInTab,
         });
+        const views = results[0]?.result || 0;
+
+        // 2. 기준 충족 시 → 해당 백그라운드 탭 캡처
+        let captureFilename = null;
+        if (views >= minViews && minViews > 0) {
+          captureFilename = await captureTab(tabId, captureIndex, author);
+        }
+
         clearTimeout(timer);
-        finish(results[0]?.result || 0);
+        finish({ views, captureFilename });
       } catch {
         clearTimeout(timer);
-        finish(0);
+        finish({ views: 0, captureFilename: null });
       }
     };
 
     chrome.tabs.onUpdated.addListener(onUpdated);
 
-    // 백그라운드 탭으로 열기 (사용자에게 보이지 않음)
     chrome.tabs.create({ url: postUrl, active: false })
       .then(tab => { tabId = tab.id; })
-      .catch(() => { clearTimeout(timer); resolve(0); });
+      .catch(() => { clearTimeout(timer); resolve({ views: 0, captureFilename: null }); });
   });
 }
 
-// ── 캡처 저장 ─────────────────────────────────────────────
-async function saveCapture(post, index, tabId) {
+// ── 탭 캡처 및 저장 ──────────────────────────────────────
+async function captureTab(tabId, index, author) {
   const timestamp  = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const safeAuthor = (post.author || 'unknown').replace(/[^a-zA-Z0-9가-힣_]/g, '_');
-  const baseName   = `${String(index).padStart(3,'0')}_${safeAuthor}_${timestamp}`;
+  const safeAuthor = (author || 'unknown').replace(/[^a-zA-Z0-9가-힣_]/g, '_').slice(0, 20);
+  const baseName   = `${String(index).padStart(3, '0')}_${safeAuthor}_${timestamp}`;
+  const filename   = `${CAPTURE_FOLDER}/${baseName}.png`;
 
   try {
-    // 1순위: 탭 스크린샷
-    if (tabId) {
-      const dataUrl  = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-      const filename = `${CAPTURE_FOLDER}/${baseName}.png`;
-      chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
-      return filename;
-    }
-  } catch {}
-
-  // 2순위: 게시물 이미지 저장
-  if (post.imageUrl) {
+    // Chrome 116+: captureTab API — 비활성 탭도 캡처 가능
+    const dataUrl = await chrome.tabs.captureTab(tabId, { format: 'png' });
+    chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+    return filename;
+  } catch {
+    // fallback: 탭을 잠깐 활성화해서 캡처
     try {
-      const dataUrl  = await fetchImageAsDataUrl(post.imageUrl);
-      const filename = `${CAPTURE_FOLDER}/${baseName}.jpg`;
+      await chrome.tabs.update(tabId, { active: true });
+      await new Promise(r => setTimeout(r, 600));
+      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
       chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
       return filename;
-    } catch {}
+    } catch {
+      return null;
+    }
   }
-  return null;
 }
 
 // ── 예약 발행 스케줄러 ────────────────────────────────────
@@ -276,8 +283,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       else if (msg.action === 'getViewCount') {
-        const views = await getViewCountFromUrl(msg.postUrl);
-        sendResponse({ views });
+        const result = await getViewCountFromUrl(msg.postUrl, msg.minViews, msg.captureIndex, msg.author);
+        sendResponse(result); // { views, captureFilename }
       }
 
       else if (msg.action === 'logMsg') {
