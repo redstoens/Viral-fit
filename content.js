@@ -45,14 +45,15 @@ async function startCollecting() {
       if (!collectRunning) break;
       if (collectedPosts.length >= targetCount) break;
 
-      const data = await extractPostData(el);
-      if (!data) continue;
-
       // 일시중지 대기
       while (collectPaused && collectRunning) await sleep(500);
       if (!collectRunning) break;
 
-      const views = parseViews(data.views);
+      const data = await extractPostData(el);
+      if (!data) continue;
+
+      // parseViews가 이미 숫자로 반환되므로 그대로 사용
+      const views = typeof data.views === 'number' ? data.views : parseViews(String(data.views));
       if (views < minViews) {
         chrome.runtime.sendMessage({ action: 'collectSkipped', views });
         continue;
@@ -111,41 +112,83 @@ function findPostElements() {
 
 async function extractPostData(el) {
   try {
-    // 텍스트 추출
-    const textEl = el.querySelector('span[dir="auto"], div[dir="auto"]');
+    // 텍스트 추출 — 여러 셀렉터 순서대로 시도
+    const textEl = el.querySelector(
+      '[data-pressable-container] span[dir="auto"], ' +
+      'div[dir="auto"] > span, ' +
+      'span[dir="auto"]'
+    );
     const text = textEl ? textEl.innerText.trim() : '';
 
     // 작성자 추출
-    const authorEl = el.querySelector('a[href*="/@"] span, [data-testid*="username"]');
+    const authorEl = el.querySelector(
+      'a[href*="/@"] span, ' +
+      'a[role="link"][href*="/@"], ' +
+      '[data-testid*="username"]'
+    );
     const author = authorEl
-      ? authorEl.innerText.trim().replace('@', '')
+      ? authorEl.innerText.trim().replace('@', '').split('\n')[0].trim()
       : extractAuthorFromUrl(el);
 
-    // 이미지 추출
-    const imgEl = el.querySelector('img:not([alt=""])');
+    // 이미지 추출 (프로필 아이콘 제외)
+    const imgEl = el.querySelector('img[srcset], img[src*="scontent"], img[src*="cdninstagram"]');
     const imageUrl = imgEl ? imgEl.src : '';
 
-    // 게시물 URL
-    const linkEl = el.querySelector('a[href*="/post/"], a[href*="/t/"]');
+    // 게시물 URL — 다양한 패턴 지원
+    const linkEl = el.querySelector(
+      'a[href*="/post/"], ' +
+      'a[href*="/t/"], ' +
+      'a[href*="threads.com/@"]'
+    );
     const postUrl = linkEl ? linkEl.href : '';
 
-    // 조회수 — 게시물을 열어야 확인 가능한 경우
-    let views = await getViewCount(el, postUrl);
+    if (!postUrl) return null; // URL 없으면 게시물 아님
 
-    if (!text && !postUrl) return null;
+    // 조회수 — 피드에서 읽기 시도 후, 없으면 백그라운드 탭으로 확인
+    const views = await getViewCount(el, postUrl);
+
     return { text, author, imageUrl, postUrl, views };
   } catch {
     return null;
   }
 }
 
-async function getViewCount(el) {
-  // 현재 요소 텍스트에서 조회수 패턴 검색
-  const allText = el.innerText;
-  const viewMatch = allText.match(/([\d,\.]+)\s*(만|천|k|M)?\s*(회|views?|조회)/i);
-  if (viewMatch) return viewMatch[0];
-  // 피드에서 조회수가 안 보이는 경우 — 기본값 반환 (개별 게시물 페이지에서만 확인 가능)
-  return '0';
+// 피드 요소 텍스트에서 조회수 추출 시도
+function extractViewsFromText(text) {
+  const patterns = [
+    /조회\s*([\d,.]+\s*(만|천|억)?)\s*회/,   // 조회 1.2만 회
+    /([\d,.]+)\s*(만|천|억)\s*회/,            // 1.2만 회
+    /([\d,]+)\s*회/,                           // 12,345회
+    /([\d,.]+\s*[KMBkmb])\s*views?/i,         // 12.3K views
+    /([\d,]+)\s*views?/i,                      // 12,345 views
+    /views\s*·?\s*([\d,.]+\s*[KMB]?)/i,       // views · 12.3K
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const v = parseViews(m[0]);
+      if (v > 0) return v;
+    }
+  }
+  return 0;
+}
+
+async function getViewCount(el, postUrl) {
+  // 1단계: 피드 요소에서 직접 읽기
+  const inFeed = extractViewsFromText(el.innerText || '');
+  if (inFeed > 0) return inFeed;
+
+  // 2단계: 백그라운드 탭으로 개별 게시물 페이지를 열어서 읽기
+  if (!postUrl) return 0;
+
+  chrome.runtime.sendMessage({ action: 'logMsg', text: `조회수 확인 중: ${postUrl.split('/').pop()}` });
+
+  const result = await chrome.runtime.sendMessage({
+    action: 'getViewCount',
+    postUrl,
+  });
+
+  return result?.views || 0;
 }
 
 function parseViews(viewStr) {

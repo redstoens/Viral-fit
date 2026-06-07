@@ -179,8 +179,12 @@ document.getElementById('btnClearData').addEventListener('click', () => {
   });
 });
 
-// content.js → popup 메시지
+// content.js / background → popup 메시지
 chrome.runtime.onMessage.addListener(msg => {
+  if (msg.action === 'popupLog') {
+    addLog(msg.text, 'dim');
+    return;
+  }
   if (msg.action === 'collectProgress') {
     setProgress('수집 중', msg.count, msg.target, msg.currentText || '');
     if (msg.currentText) addLog(`[${msg.count}/${msg.target}] ${msg.currentText}`, 'ok');

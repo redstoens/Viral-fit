@@ -98,6 +98,80 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
+// ── 조회수 읽기 (백그라운드 탭) ───────────────────────────
+function parseViewsInTab() {
+  // 이 함수는 별도 탭에서 실행됨
+  const text = document.body?.innerText || '';
+  const patterns = [
+    /조회\s*([\d,.]+\s*(만|천|억)?)\s*회/,
+    /([\d,.]+)\s*(만|천|억)\s*회/,
+    /([\d,]+)\s*회/,
+    /([\d,.]+\s*[KMBkmb])\s*views?/i,
+    /([\d,]+)\s*views?/i,
+    /views\s*[·\s]\s*([\d,.]+\s*[KMB]?)/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const raw = m[0].replace(/,/g, '').trim();
+      let num = 0;
+      if (/만/.test(raw))      num = parseFloat(raw) * 10000;
+      else if (/천/.test(raw)) num = parseFloat(raw) * 1000;
+      else if (/억/.test(raw)) num = parseFloat(raw) * 100000000;
+      else if (/[KkK]/.test(raw)) num = parseFloat(raw) * 1000;
+      else if (/M/.test(raw))  num = parseFloat(raw) * 1000000;
+      else if (/B/.test(raw))  num = parseFloat(raw) * 1000000000;
+      else num = parseInt(raw) || 0;
+      if (num > 0) return num;
+    }
+  }
+  return 0;
+}
+
+async function getViewCountFromUrl(postUrl) {
+  return new Promise(resolve => {
+    let tabId = null;
+    let done  = false;
+
+    const finish = (views) => {
+      if (done) return;
+      done = true;
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      if (tabId) chrome.tabs.remove(tabId).catch(() => {});
+      resolve(views);
+    };
+
+    // 10초 타임아웃
+    const timer = setTimeout(() => finish(0), 10000);
+
+    const onUpdated = async (id, info) => {
+      if (id !== tabId || info.status !== 'complete') return;
+
+      // React 렌더링 대기 (2.5초)
+      await new Promise(r => setTimeout(r, 2500));
+
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: parseViewsInTab,
+        });
+        clearTimeout(timer);
+        finish(results[0]?.result || 0);
+      } catch {
+        clearTimeout(timer);
+        finish(0);
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    // 백그라운드 탭으로 열기 (사용자에게 보이지 않음)
+    chrome.tabs.create({ url: postUrl, active: false })
+      .then(tab => { tabId = tab.id; })
+      .catch(() => { clearTimeout(timer); resolve(0); });
+  });
+}
+
 // ── 캡처 저장 ─────────────────────────────────────────────
 async function saveCapture(post, index, tabId) {
   const timestamp  = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -167,6 +241,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 const VALID_ACTIONS = new Set([
   'generateText', 'generateImage', 'fetchImageAsDataUrl',
   'schedulePost', 'updateQueueStatus', 'saveCapture',
+  'getViewCount', 'logMsg',
 ]);
 
 const CAPTURE_FOLDER = 'viral-fit_captures';
@@ -197,6 +272,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       else if (msg.action === 'schedulePost') {
         await schedulePost(msg.item);
+        sendResponse({ ok: true });
+      }
+
+      else if (msg.action === 'getViewCount') {
+        const views = await getViewCountFromUrl(msg.postUrl);
+        sendResponse({ views });
+      }
+
+      else if (msg.action === 'logMsg') {
+        // popup이 열려 있으면 로그 전달
+        const views = await chrome.runtime.sendMessage({ action: 'popupLog', text: msg.text })
+          .catch(() => {});
         sendResponse({ ok: true });
       }
 
