@@ -98,33 +98,75 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
-// ── 조회수 읽기 (백그라운드 탭) ───────────────────────────
-function parseViewsInTab() {
-  // 이 함수는 별도 탭에서 실행됨
-  const text = document.body?.innerText || '';
-  const patterns = [
-    /조회\s*([\d,.]+\s*(만|천|억)?)\s*회/,
-    /([\d,.]+)\s*(만|천|억)\s*회/,
-    /([\d,]+)\s*회/,
-    /([\d,.]+\s*[KMBkmb])\s*views?/i,
-    /([\d,]+)\s*views?/i,
-    /views\s*[·\s]\s*([\d,.]+\s*[KMB]?)/i,
+// ── 조회수 읽기 (백그라운드 탭 내에서 실행) ────────────────
+// chrome.scripting.executeScript가 async 함수를 지원하므로 await 사용 가능
+async function parseViewsInTab() {
+  // 1. "활동 보기" 버튼 탐색 후 클릭 (우측 활동 패널 열기)
+  const clickActivity = () => {
+    const candidates = document.querySelectorAll(
+      '[role="button"], button, a[role="button"], div[tabindex]'
+    );
+    for (const el of candidates) {
+      const t = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim();
+      if (/^활동\s*보기$|^View\s+activity$|^인사이트$|^Insights$/i.test(t)) {
+        el.click();
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const clicked = clickActivity();
+  if (clicked) {
+    // 패널 렌더링 대기
+    await new Promise(r => setTimeout(r, 1800));
+  }
+
+  const bodyText = document.body?.innerText || '';
+
+  // 2. 정밀 숫자 우선 파싱 — 활동 패널의 콤마 포함 정확한 수 (예: 12,345)
+  // 패턴: "조회수 12,345" / "12,345 조회" / "12,345회" / "12,345 views"
+  const exactPatterns = [
+    /조회수?\s*([\d]{1,3}(?:,\d{3})+)(?!\s*만|\s*천|\s*억)/,
+    /([\d]{1,3}(?:,\d{3})+)\s*(?:회\s*)?(?:조회|views?)/i,
+    /views?\s*[·:\s]\s*([\d]{1,3}(?:,\d{3})+)/i,
   ];
-  for (const p of patterns) {
-    const m = text.match(p);
+  for (const p of exactPatterns) {
+    const m = bodyText.match(p);
     if (m) {
-      const raw = m[0].replace(/,/g, '').trim();
-      let num = 0;
-      if (/만/.test(raw))      num = parseFloat(raw) * 10000;
-      else if (/천/.test(raw)) num = parseFloat(raw) * 1000;
-      else if (/억/.test(raw)) num = parseFloat(raw) * 100000000;
-      else if (/[KkK]/.test(raw)) num = parseFloat(raw) * 1000;
-      else if (/M/.test(raw))  num = parseFloat(raw) * 1000000;
-      else if (/B/.test(raw))  num = parseFloat(raw) * 1000000000;
-      else num = parseInt(raw) || 0;
+      const num = parseInt((m[1] || m[2] || '').replace(/,/g, ''), 10);
       if (num > 0) return num;
     }
   }
+
+  // 3. 단위 축약 없는 단순 큰 숫자 + 조회 키워드 (콤마 없는 경우)
+  const plainExact = bodyText.match(/조회수?\s*(\d{4,})(?!\s*만|\s*천|\s*억)/);
+  if (plainExact) {
+    const num = parseInt(plainExact[1], 10);
+    if (num > 0) return num;
+  }
+
+  // 4. 축약형 fallback (1.2만, 12K 등) — 캡처 그룹으로 숫자만 추출
+  const abbrevMap = [
+    { pat: /조회\s*([\d,.]+)\s*만\s*회?/,     mult: 10000 },
+    { pat: /([\d,.]+)\s*만\s*(?:조회|회)/,     mult: 10000 },
+    { pat: /조회\s*([\d,.]+)\s*천\s*회?/,     mult: 1000 },
+    { pat: /([\d,.]+)\s*천\s*(?:조회|회)/,     mult: 1000 },
+    { pat: /조회\s*([\d,.]+)\s*억\s*회?/,     mult: 100000000 },
+    { pat: /([\d,.]+)\s*억\s*(?:조회|회)/,     mult: 100000000 },
+    { pat: /([\d,.]+)\s*[Kk]\s*views?/i,      mult: 1000 },
+    { pat: /([\d,.]+)\s*M\s*views?/i,         mult: 1000000 },
+    { pat: /([\d,.]+)\s*B\s*views?/i,         mult: 1000000000 },
+    { pat: /조회\s*([\d,]+)\s*회/,             mult: 1 },
+    { pat: /([\d,]+)\s*views?/i,              mult: 1 },
+  ];
+  for (const { pat, mult } of abbrevMap) {
+    const m = bodyText.match(pat);
+    if (!m) continue;
+    const num = parseFloat(m[1].replace(/,/g, '')) * mult;
+    if (num > 0) return num;
+  }
+
   return 0;
 }
 
