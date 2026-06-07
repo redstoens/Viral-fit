@@ -32,10 +32,15 @@ const collectedListEl = document.getElementById('collectedList');
 
 let isCollecting = false;
 
+async function getThreadsTab() {
+  const tabs = await chrome.tabs.query({ url: 'https://www.threads.net/*' });
+  return tabs.length ? tabs[0] : null;
+}
+
 document.getElementById('btnStartCollect').addEventListener('click', async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab.url.includes('threads.net')) {
-    setStatus(collectStatus, 'Threads 탭을 열고 탐색 피드로 이동하세요.', 'error');
+  const tab = await getThreadsTab();
+  if (!tab) {
+    setStatus(collectStatus, 'Threads(threads.net)를 먼저 열어주세요.', 'error');
     return;
   }
 
@@ -54,8 +59,8 @@ document.getElementById('btnStartCollect').addEventListener('click', async () =>
 });
 
 document.getElementById('btnStopCollect').addEventListener('click', async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.tabs.sendMessage(tab.id, { action: 'stopCollect' });
+  const tab = await getThreadsTab();
+  if (tab) chrome.tabs.sendMessage(tab.id, { action: 'stopCollect' });
   isCollecting = false;
   document.getElementById('btnStartCollect').disabled = false;
   document.getElementById('btnStopCollect').disabled = true;
@@ -374,6 +379,12 @@ document.getElementById('btnPublishNow').addEventListener('click', async () => {
   const text = document.getElementById('composeText').value.trim();
   if (!text) { alert('게시글 내용을 입력하세요.'); return; }
 
+  const tab = await getThreadsTab();
+  if (!tab) {
+    alert('Threads(threads.net)를 먼저 열어주세요.');
+    return;
+  }
+
   const item = {
     id: Date.now().toString(),
     text,
@@ -381,12 +392,6 @@ document.getElementById('btnPublishNow').addEventListener('click', async () => {
     scheduledAt: Date.now(),
     status: 'pending',
   };
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab.url.includes('threads.net')) {
-    alert('Threads 탭으로 이동 후 다시 시도하세요.');
-    return;
-  }
 
   chrome.tabs.sendMessage(tab.id, { action: 'publishPost', item });
   resetCompose();
