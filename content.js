@@ -160,6 +160,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ ok: true });
     return;
   }
+  if (msg.action === 'getCollectState') {
+    sendResponse({
+      running: collectRunning,
+      paused:  collectPaused,
+      count:   collectedPosts.length,
+      config:  collectConfig,
+    });
+    return;
+  }
   if (msg.action === 'startCollect') {
     collectConfig = msg.config;
     startCollecting();

@@ -214,6 +214,7 @@ chrome.runtime.onMessage.addListener(msg => {
     addLog(`수집 완료! 총 ${msg.count}개 저장`, 'ok');
     resetCollectButtons();
     chrome.storage.local.get('collectedPosts', ({ collectedPosts = [] }) => renderTable(collectedPosts));
+    setTimeout(() => window.close(), 1500);
   }
   if (msg.action === 'collectError') {
     addLog(`오류: ${msg.error}`, 'error');
@@ -275,6 +276,40 @@ chrome.storage.local.get('collectedPosts', ({ collectedPosts = [] }) => {
   renderTable(collectedPosts);
 });
 addLog('Viral-fit 준비 완료', 'ok');
+
+// 팝업 재오픈 시 수집 상태 복원 (수집 중이면 버튼 활성화)
+(async () => {
+  const tab = await getThreadsTab();
+  if (!tab) return;
+  try {
+    const state = await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tab.id, { action: 'getCollectState' }, res => {
+        if (chrome.runtime.lastError || !res) reject();
+        else resolve(res);
+      });
+    });
+    if (!state.running) return;
+
+    document.getElementById('btnStartCollect').disabled = true;
+    document.getElementById('btnPauseCollect').disabled = false;
+    document.getElementById('btnStopCollect').disabled  = false;
+
+    const target = state.config?.targetCount || 0;
+    setProgress(
+      state.paused ? '일시중지' : '수집 중',
+      state.count,
+      target,
+      '수집 진행 중...'
+    );
+    addLog('수집이 진행 중입니다 — 일시중지 또는 중지 가능', 'dim');
+
+    if (state.paused) {
+      const btn = document.getElementById('btnPauseCollect');
+      btn.textContent    = '▶ 재개';
+      btn.dataset.paused = 'true';
+    }
+  } catch { /* content script 없음 = 수집 중 아님 */ }
+})();
 
 // ── AI 생성 탭 ────────────────────────────────────────────
 function refreshSourceSelect() {

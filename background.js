@@ -322,14 +322,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const senderTab = sender.tab;
         if (!senderTab) { sendResponse(null); return; }
         try {
-          // Chrome 116+: captureTab — 탭을 활성화하지 않고 캡처 가능
+          // Chrome 116+: captureTab — 탭·창 포커스 없이 캡처 (팝업 유지)
           const dataUrl = await chrome.tabs.captureTab(senderTab.id, { format: 'png' });
           sendResponse(dataUrl);
         } catch {
-          // fallback: 창 포커스 후 captureVisibleTab
+          // fallback: captureVisibleTab — focused: true 제거하여 팝업이 닫히지 않도록
           try {
-            await chrome.windows.update(senderTab.windowId, { focused: true });
-            await new Promise(r => setTimeout(r, 200));
             const dataUrl = await chrome.tabs.captureVisibleTab(senderTab.windowId, { format: 'png', quality: 100 });
             sendResponse(dataUrl);
           } catch {
