@@ -98,6 +98,31 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
+// ── 캡처 저장 ─────────────────────────────────────────────
+async function saveCapture(post, index, tabId) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const safeAuthor = (post.author || 'unknown').replace(/[^a-zA-Z0-9가-힣]/g, '_');
+  const filename = `${CAPTURE_FOLDER}/${String(index).padStart(3, '0')}_${safeAuthor}_${timestamp}.png`;
+
+  try {
+    // 1순위: 탭 스크린샷 캡처
+    if (tabId) {
+      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+      chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+      return;
+    }
+  } catch {}
+
+  // 2순위: 게시물 이미지가 있으면 해당 이미지 저장
+  if (post.imageUrl) {
+    try {
+      const dataUrl = await fetchImageAsDataUrl(post.imageUrl);
+      const imgFilename = filename.replace('.png', '.jpg');
+      chrome.downloads.download({ url: dataUrl, filename: imgFilename, saveAs: false });
+    } catch {}
+  }
+}
+
 // ── 예약 발행 스케줄러 ────────────────────────────────────
 async function schedulePost(item) {
   const delay = Math.max(item.scheduledAt - Date.now(), 0);
@@ -138,8 +163,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // ── 메시지 핸들러 ─────────────────────────────────────────
 const VALID_ACTIONS = new Set([
   'generateText', 'generateImage', 'fetchImageAsDataUrl',
-  'schedulePost', 'updateQueueStatus',
+  'schedulePost', 'updateQueueStatus', 'saveCapture',
 ]);
+
+const CAPTURE_FOLDER = 'viral-fit_captures';
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // 같은 확장 프로그램에서 온 메시지만 허용 (popup, content script 모두 포함)
@@ -167,6 +194,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       else if (msg.action === 'schedulePost') {
         await schedulePost(msg.item);
+        sendResponse({ ok: true });
+      }
+
+      else if (msg.action === 'saveCapture') {
+        await saveCapture(msg.post, msg.index, sender.tab?.id);
         sendResponse({ ok: true });
       }
 

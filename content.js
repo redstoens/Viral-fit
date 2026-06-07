@@ -49,10 +49,18 @@ async function startCollecting() {
       collectedPosts.push({ ...data, views });
       await chrome.storage.local.set({ collectedPosts });
 
+      // 캡처 저장 요청
+      chrome.runtime.sendMessage({
+        action: 'saveCapture',
+        post: { ...data, views },
+        index: collectedPosts.length,
+      });
+
       chrome.runtime.sendMessage({
         action: 'collectProgress',
         count: collectedPosts.length,
         target: targetCount,
+        currentText: (data.text || '').slice(0, 50),
       });
 
       await sleep(delay);
