@@ -21,8 +21,21 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
-// ── 로그 ─────────────────────────────────────────────────
-const logBox = document.getElementById('logBox');
+// ── 플로팅 로그 ──────────────────────────────────────────
+const logBox      = document.getElementById('logBox');
+const floatLog    = document.getElementById('floatLog');
+const toggleBtn   = document.getElementById('btnToggleLog');
+
+document.getElementById('btnCloseLog').addEventListener('click', () => {
+  floatLog.classList.add('hidden');
+  toggleBtn.classList.remove('hidden');
+});
+
+toggleBtn.addEventListener('click', () => {
+  floatLog.classList.remove('hidden');
+  toggleBtn.classList.add('hidden');
+  logBox.scrollTop = logBox.scrollHeight;
+});
 
 function addLog(message, type = '') {
   const now = new Date();

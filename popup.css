@@ -227,7 +227,19 @@ textarea { resize: vertical; }
 .btn-link:hover    { text-decoration: underline; }
 .btn.btn-sm        { padding: 5px 10px; font-size: 11px; }
 
-.btn-row { display: flex; align-items: center; gap: 6px; }
+.btn-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+
+/* 수집 제어 버튼 — 가로 균등 배치 */
+.ctrl-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.ctrl-row .btn { flex: 1; text-align: center; }
 .gap6 { gap: 6px; }
 .mt8  { margin-top: 8px; }
 .mt6  { margin-top: 6px; }
@@ -254,6 +266,98 @@ textarea { resize: vertical; }
 .log-line.error { color: #f87171; }
 .log-line.dim   { color: #6b7280; }
 .log-line.ok    { color: #34d399; }
+
+/* ── 플로팅 로그창 ── */
+.float-log {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border-top: 2px solid #6366f1;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.float-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #1e1e2e;
+  border-bottom: 1px solid #2d2d42;
+}
+
+.float-log-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a3e635;
+  font-family: Consolas, monospace;
+  letter-spacing: 0.5px;
+}
+
+.float-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.float-log-clear {
+  background: none;
+  border: 1px solid #3d3d5c;
+  color: #6b7280;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: Consolas, monospace;
+  transition: color 0.15s, border-color 0.15s;
+}
+.float-log-clear:hover { color: #a3e635; border-color: #6366f1; }
+
+.float-log-close {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.float-log-close:hover { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+
+.float-log .log-box {
+  height: 120px;
+  border-radius: 0;
+}
+
+.float-log.hidden { display: none; }
+
+/* 로그 재열기 토글 버튼 (우측 하단) */
+.float-log-toggle {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 999;
+  background: #1e1e2e;
+  color: #a3e635;
+  border: 1px solid #3d3d5c;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: Consolas, monospace;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.float-log-toggle:hover { border-color: #6366f1; box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3); }
+.float-log-toggle.hidden { display: none; }
 
 /* ── 미리보기 테이블 ── */
 .preview-table-wrap {

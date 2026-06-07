@@ -67,19 +67,10 @@
   </div>
 
   <!-- 제어 버튼 -->
-  <div class="section btn-row">
+  <div class="section ctrl-row">
     <button id="btnStartCollect" class="btn btn-start">▶ 수집 시작</button>
     <button id="btnPauseCollect" class="btn btn-pause" disabled>⏸ 일시중지</button>
     <button id="btnStopCollect"  class="btn btn-stop"  disabled>■ 중지</button>
-  </div>
-
-  <!-- 로그 -->
-  <div class="section">
-    <div class="section-title">
-      <span>실시간 로그</span>
-      <button id="btnClearLog" class="btn-link">지우기</button>
-    </div>
-    <div class="log-box" id="logBox"></div>
   </div>
 
   <!-- 수집 목록 -->
@@ -241,6 +232,21 @@
   </div>
 
 </div>
+
+<!-- ── 플로팅 로그창 ── -->
+<div id="floatLog" class="float-log">
+  <div class="float-log-header">
+    <span class="float-log-title">&#9654; 실시간 로그</span>
+    <div class="float-log-actions">
+      <button id="btnClearLog" class="float-log-clear">지우기</button>
+      <button id="btnCloseLog" class="float-log-close">&#x2715;</button>
+    </div>
+  </div>
+  <div class="log-box" id="logBox"></div>
+</div>
+
+<!-- 로그창 닫혔을 때 재열기 버튼 -->
+<button id="btnToggleLog" class="float-log-toggle hidden" title="로그 열기">&#9654; LOG</button>
 
 <script src="popup.js"></script>
 </body>
