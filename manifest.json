@@ -10,7 +10,8 @@
     "tabs",
     "activeTab",
     "scripting",
-    "notifications"
+    "notifications",
+    "windows"
   ],
   "host_permissions": [
     "https://www.threads.net/*",

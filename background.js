@@ -98,129 +98,154 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
-// ── 조회수 읽기 (백그라운드 탭 내에서 실행) ────────────────
-// chrome.scripting.executeScript가 async 함수를 지원하므로 await 사용 가능
-async function parseViewsInTab() {
-  // 1. "활동 보기" 버튼 탐색 후 클릭 (우측 활동 패널 열기)
-  const clickActivity = () => {
-    const candidates = document.querySelectorAll(
-      '[role="button"], button, a[role="button"], div[tabindex]'
-    );
-    for (const el of candidates) {
-      const t = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim();
-      if (/^활동\s*보기$|^View\s+activity$|^인사이트$|^Insights$/i.test(t)) {
-        el.click();
-        return true;
-      }
-    }
-    return false;
-  };
+// ── 조회수 확인용 영구 팝업 창 (viral-pick 방식) ────────────
+// 매 게시물마다 탭을 생성/제거하지 않고 창 하나를 재사용
+let checkWindowId = null;
+let checkTabId    = null;
 
-  const clicked = clickActivity();
-  if (clicked) {
-    // 패널 렌더링 대기
-    await new Promise(r => setTimeout(r, 1800));
-  }
-
-  const bodyText = document.body?.innerText || '';
-
-  // 2. 정밀 숫자 우선 파싱 — 활동 패널의 콤마 포함 정확한 수 (예: 12,345)
-  // 패턴: "조회수 12,345" / "12,345 조회" / "12,345회" / "12,345 views"
-  const exactPatterns = [
-    /조회수?\s*([\d]{1,3}(?:,\d{3})+)(?!\s*만|\s*천|\s*억)/,
-    /([\d]{1,3}(?:,\d{3})+)\s*(?:회\s*)?(?:조회|views?)/i,
-    /views?\s*[·:\s]\s*([\d]{1,3}(?:,\d{3})+)/i,
-  ];
-  for (const p of exactPatterns) {
-    const m = bodyText.match(p);
-    if (m) {
-      const num = parseInt((m[1] || m[2] || '').replace(/,/g, ''), 10);
-      if (num > 0) return num;
+async function getOrCreateCheckWindow(url) {
+  if (checkWindowId !== null) {
+    try {
+      await chrome.windows.get(checkWindowId);       // 창이 살아있는지 확인
+      await chrome.tabs.update(checkTabId, { url }); // URL만 교체
+      return checkTabId;
+    } catch {
+      checkWindowId = null;
+      checkTabId    = null;
     }
   }
-
-  // 3. 단위 축약 없는 단순 큰 숫자 + 조회 키워드 (콤마 없는 경우)
-  const plainExact = bodyText.match(/조회수?\s*(\d{4,})(?!\s*만|\s*천|\s*억)/);
-  if (plainExact) {
-    const num = parseInt(plainExact[1], 10);
-    if (num > 0) return num;
-  }
-
-  // 4. 축약형 fallback (1.2만, 12K 등) — 캡처 그룹으로 숫자만 추출
-  const abbrevMap = [
-    { pat: /조회\s*([\d,.]+)\s*만\s*회?/,     mult: 10000 },
-    { pat: /([\d,.]+)\s*만\s*(?:조회|회)/,     mult: 10000 },
-    { pat: /조회\s*([\d,.]+)\s*천\s*회?/,     mult: 1000 },
-    { pat: /([\d,.]+)\s*천\s*(?:조회|회)/,     mult: 1000 },
-    { pat: /조회\s*([\d,.]+)\s*억\s*회?/,     mult: 100000000 },
-    { pat: /([\d,.]+)\s*억\s*(?:조회|회)/,     mult: 100000000 },
-    { pat: /([\d,.]+)\s*[Kk]\s*views?/i,      mult: 1000 },
-    { pat: /([\d,.]+)\s*M\s*views?/i,         mult: 1000000 },
-    { pat: /([\d,.]+)\s*B\s*views?/i,         mult: 1000000000 },
-    { pat: /조회\s*([\d,]+)\s*회/,             mult: 1 },
-    { pat: /([\d,]+)\s*views?/i,              mult: 1 },
-  ];
-  for (const { pat, mult } of abbrevMap) {
-    const m = bodyText.match(pat);
-    if (!m) continue;
-    const num = parseFloat(m[1].replace(/,/g, '')) * mult;
-    if (num > 0) return num;
-  }
-
-  return 0;
+  // 새 팝업 창 생성 (작고, 포커스 없음)
+  const win = await chrome.windows.create({
+    url,
+    width: 480,
+    height: 700,
+    left: 50,
+    top: 50,
+    type: 'popup',
+    focused: false,
+  });
+  checkWindowId = win.id;
+  checkTabId    = win.tabs[0].id;
+  return checkTabId;
 }
 
-// ── 조회수 확인 + 기준 충족 시 캡처 (백그라운드 탭) ────────
-async function getViewCountFromUrl(postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
-  return new Promise(resolve => {
-    let tabId = null;
-    let done  = false;
+async function closeCheckWindow() {
+  if (checkWindowId !== null) {
+    try { await chrome.windows.remove(checkWindowId); } catch {}
+    checkWindowId = null;
+    checkTabId    = null;
+  }
+}
 
-    const finish = (result) => {
-      if (done) return;
-      done = true;
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      if (tabId) chrome.tabs.remove(tabId).catch(() => {});
-      resolve(result);
-    };
+// 사용자가 수동으로 창을 닫은 경우 감지
+chrome.windows.onRemoved.addListener(wid => {
+  if (wid === checkWindowId) { checkWindowId = null; checkTabId = null; }
+});
 
-    // 15초 타임아웃
-    const timer = setTimeout(() => finish({ views: 0, captureFilename: null }), 15000);
+// ── 탭에 주입하는 조회수 읽기 스크립트 ────────────────────
+// viral-pick과 동일한 폴링 방식:
+// "활동 보기" 클릭 → "조회" 텍스트 옆 콤마 포함 정확한 숫자 읽기
+function getViewCountScript() {
+  return () => new Promise(resolve => {
+    let phase    = 'find-button';
+    let attempts = 0;
+    const MAX    = 30;
 
-    const onUpdated = async (id, info) => {
-      if (id !== tabId || info.status !== 'complete') return;
+    function tick() {
+      attempts++;
+      if (attempts > MAX) { resolve(null); return; }
 
-      // React 렌더링 대기
-      await new Promise(r => setTimeout(r, 2500));
+      if (phase === 'find-button') {
+        // 이미 조회수가 보이는지 먼저 확인
+        const early = tryRead();
+        if (early) { resolve(early); return; }
 
-      try {
-        // 1. 조회수 읽기
-        const results = await chrome.scripting.executeScript({
-          target: { tabId },
-          func: parseViewsInTab,
-        });
-        const views = results[0]?.result || 0;
-
-        // 2. 기준 충족 시 → 해당 백그라운드 탭 캡처
-        let captureFilename = null;
-        if (views >= minViews && minViews > 0) {
-          captureFilename = await captureTab(tabId, captureIndex, author);
+        // "활동 보기" / "View activity" 버튼 탐색 후 클릭
+        const all = document.querySelectorAll('span[dir="auto"], div, span');
+        for (const el of all) {
+          const t = el.textContent.trim();
+          if (t === '활동 보기' || t === 'View activity') {
+            const target = el.closest('[role="button"]') || el.closest('a') ||
+                           el.closest('[tabindex]') || el;
+            target.click();
+            phase = 'read';
+            setTimeout(tick, 1500); // 패널 열리기 대기
+            return;
+          }
         }
+        setTimeout(tick, 500);
 
-        clearTimeout(timer);
-        finish({ views, captureFilename });
-      } catch {
-        clearTimeout(timer);
-        finish({ views: 0, captureFilename: null });
+      } else { // phase === 'read'
+        const result = tryRead();
+        if (result) { resolve(result); return; }
+        setTimeout(tick, 500);
       }
-    };
+    }
 
-    chrome.tabs.onUpdated.addListener(onUpdated);
+    // "조회" / "Views" 텍스트 엘리먼트를 찾아 인접 숫자 반환
+    function tryRead() {
+      const all = document.querySelectorAll('div, span');
+      for (const el of all) {
+        const t = el.textContent.trim();
+        if (t === '조회' || t === 'Views') {
+          const parent = el.closest('div');
+          if (!parent) continue;
+          for (const n of parent.querySelectorAll('*')) {
+            const nt = n.textContent.trim();
+            if (/^[\d,]+$/.test(nt)) {
+              const num = parseInt(nt.replace(/,/g, ''), 10);
+              if (num > 0) return nt; // "12,345" 형식 그대로 반환
+            }
+          }
+        }
+      }
+      return null;
+    }
 
-    chrome.tabs.create({ url: postUrl, active: false })
-      .then(tab => { tabId = tab.id; })
-      .catch(() => { clearTimeout(timer); resolve({ views: 0, captureFilename: null }); });
+    if (document.readyState === 'complete') setTimeout(tick, 2000);
+    else window.addEventListener('load', () => setTimeout(tick, 2000));
   });
+}
+
+// ── 조회수 확인 + 기준 충족 시 캡처 ─────────────────────────
+async function getViewCountFromUrl(postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
+  try {
+    const tabId = await getOrCreateCheckWindow(postUrl);
+
+    // 페이지 로딩 완료 대기 (최대 20초)
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), 20000);
+      const listener = (tid, info) => {
+        if (tid !== tabId || info.status !== 'complete') return;
+        chrome.tabs.onUpdated.removeListener(listener);
+        clearTimeout(timer);
+        resolve();
+      };
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+
+    // 폴링 스크립트 주입: "활동 보기" 클릭 → 조회수 읽기
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: getViewCountScript(),
+    });
+
+    const viewText = results?.[0]?.result || null;
+    if (!viewText) return { views: 0, captureFilename: null };
+
+    const views = parseInt(viewText.replace(/,/g, ''), 10);
+
+    // 기준 충족 시 팝업 창 탭 캡처
+    let captureFilename = null;
+    if (views >= minViews && minViews > 0) {
+      captureFilename = await captureTab(tabId, captureIndex, author);
+    }
+
+    return { views, captureFilename };
+
+  } catch {
+    return { views: 0, captureFilename: null };
+  }
 }
 
 // ── 탭 캡처 및 저장 ──────────────────────────────────────
@@ -290,7 +315,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 const VALID_ACTIONS = new Set([
   'generateText', 'generateImage', 'fetchImageAsDataUrl',
   'schedulePost', 'updateQueueStatus', 'saveCapture',
-  'getViewCount', 'logMsg',
+  'getViewCount', 'closeCheckWindow', 'logMsg',
 ]);
 
 const CAPTURE_FOLDER = 'viral-fit_captures';
@@ -327,6 +352,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       else if (msg.action === 'getViewCount') {
         const result = await getViewCountFromUrl(msg.postUrl, msg.minViews, msg.captureIndex, msg.author);
         sendResponse(result); // { views, captureFilename }
+      }
+
+      else if (msg.action === 'closeCheckWindow') {
+        await closeCheckWindow();
+        sendResponse({ ok: true });
       }
 
       else if (msg.action === 'logMsg') {

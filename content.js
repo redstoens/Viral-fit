@@ -44,6 +44,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'stopCollect') {
     collectRunning = false;
     collectPaused  = false;
+    chrome.runtime.sendMessage({ action: 'closeCheckWindow' });
   }
   if (msg.action === 'publishPost') {
     publishPost(msg.item);
@@ -110,10 +111,8 @@ async function startCollecting() {
 
   if (collectRunning) {
     collectRunning = false;
-    chrome.runtime.sendMessage({
-      action: 'collectDone',
-      count: collectedPosts.length,
-    });
+    chrome.runtime.sendMessage({ action: 'collectDone', count: collectedPosts.length });
+    chrome.runtime.sendMessage({ action: 'closeCheckWindow' });
   }
 }
 
