@@ -126,16 +126,13 @@ function findPostElements() {
 
 async function extractPostData(el) {
   try {
-    // 텍스트 추출 — 앵커(username 링크) 내부 요소는 제외
-    let textEl = null;
-    const textCandidates = el.querySelectorAll('div[dir="auto"], span[dir="auto"]');
-    for (const candidate of textCandidates) {
-      // a[href] 내부는 username/링크이므로 건너뜀
-      if (candidate.closest('a[href]')) continue;
-      const txt = (candidate.innerText || '').trim();
-      if (txt.length > 0) { textEl = candidate; break; }
-    }
-    const text = textEl ? textEl.innerText.trim() : '';
+    // 텍스트 추출 — viral-pick 방식: 모든 span[dir="auto"] 중 가장 긴 텍스트 선택
+    // (사용자명은 짧고 본문은 길므로 가장 긴 것이 본문)
+    let text = '';
+    el.querySelectorAll('span[dir="auto"]').forEach(span => {
+      const t = span.textContent.trim();
+      if (t.length > text.length) text = t;
+    });
 
     // 작성자 추출
     const authorEl = el.querySelector(
