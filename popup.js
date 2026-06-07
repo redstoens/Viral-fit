@@ -32,10 +32,13 @@ const collectedListEl = document.getElementById('collectedList');
 
 let isCollecting = false;
 
+function isThreadsUrl(url) {
+  return url && (url.includes('threads.net') || url.includes('threads.com'));
+}
+
 async function getThreadsTab() {
-  // URL 패턴 대신 전체 탭 조회 후 직접 필터 (환경 차이 대응)
   const tabs = await chrome.tabs.query({});
-  return tabs.find(t => t.url && t.url.includes('threads.net')) || null;
+  return tabs.find(t => isThreadsUrl(t.url)) || null;
 }
 
 async function ensureContentScript(tabId) {
