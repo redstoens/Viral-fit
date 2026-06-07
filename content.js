@@ -25,6 +25,135 @@ window.addEventListener('__vf_views__', e => {
   }
 });
 
+// ── 페이지 내 모니터 패널 (viral-pick 방식) ──────────────
+
+let vfPanel     = null;
+let vfLogArea   = null;
+let vfToggleBtn = null;
+
+function createPanel() {
+  if (vfPanel) {
+    vfPanel.style.display = 'flex';
+    if (vfToggleBtn) vfToggleBtn.style.display = 'none';
+    return;
+  }
+
+  vfPanel = document.createElement('div');
+  vfPanel.id = 'vf-panel';
+  vfPanel.style.cssText = [
+    'position:fixed', 'bottom:16px', 'right:16px',
+    'width:360px', 'max-height:300px',
+    'background:#1a1a2e', 'color:#e0e0e0',
+    'border:2px solid #6366f1', 'border-radius:12px',
+    'z-index:2147483647',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.5)',
+    'font-family:Consolas,monospace', 'font-size:12px',
+    'overflow:hidden', 'display:flex', 'flex-direction:column',
+  ].join(';');
+
+  // 헤더
+  const header = document.createElement('div');
+  header.style.cssText = [
+    'padding:9px 12px',
+    'background:linear-gradient(135deg,#6366f1,#8b5cf6)',
+    'color:#fff', 'font-weight:700', 'font-size:13px',
+    'display:flex', 'justify-content:space-between', 'align-items:center',
+    'flex-shrink:0',
+  ].join(';');
+
+  const titleEl = document.createElement('span');
+  titleEl.textContent = '⚡ Viral-fit';
+
+  const rightEl = document.createElement('div');
+  rightEl.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+  const statsEl = document.createElement('span');
+  statsEl.id = 'vf-stats';
+  statsEl.style.cssText = 'font-size:11px;font-weight:400;opacity:0.85;';
+  statsEl.textContent = '0 / 0';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = [
+    'background:rgba(255,255,255,0.2)', 'border:none', 'color:#fff',
+    'font-size:13px', 'font-weight:700', 'cursor:pointer',
+    'padding:2px 7px', 'border-radius:4px', 'line-height:1',
+  ].join(';');
+  closeBtn.addEventListener('click', () => {
+    vfPanel.style.display = 'none';
+    showVfToggle();
+  });
+
+  rightEl.appendChild(statsEl);
+  rightEl.appendChild(closeBtn);
+  header.appendChild(titleEl);
+  header.appendChild(rightEl);
+  vfPanel.appendChild(header);
+
+  // 진행바
+  const barWrap = document.createElement('div');
+  barWrap.style.cssText = 'height:3px;background:#2a2a4a;flex-shrink:0;';
+  const bar = document.createElement('div');
+  bar.id = 'vf-bar';
+  bar.style.cssText = 'height:100%;width:0%;background:#a3e635;transition:width 0.3s;';
+  barWrap.appendChild(bar);
+  vfPanel.appendChild(barWrap);
+
+  // 로그 영역
+  vfLogArea = document.createElement('div');
+  vfLogArea.style.cssText = [
+    'flex:1', 'padding:8px 12px',
+    'overflow-y:auto', 'max-height:230px',
+    'line-height:1.7',
+  ].join(';');
+  vfPanel.appendChild(vfLogArea);
+
+  document.body.appendChild(vfPanel);
+}
+
+function showVfToggle() {
+  if (!vfToggleBtn) {
+    vfToggleBtn = document.createElement('button');
+    vfToggleBtn.id = 'vf-toggle';
+    vfToggleBtn.style.cssText = [
+      'position:fixed', 'bottom:16px', 'right:16px',
+      'background:#1a1a2e', 'color:#a3e635',
+      'border:2px solid #6366f1', 'border-radius:8px',
+      'padding:8px 14px',
+      'font-family:Consolas,monospace', 'font-size:12px',
+      'font-weight:700', 'cursor:pointer',
+      'z-index:2147483647',
+      'box-shadow:0 4px 16px rgba(99,102,241,0.4)',
+    ].join(';');
+    vfToggleBtn.textContent = '⚡ Viral-fit';
+    vfToggleBtn.addEventListener('click', () => {
+      vfToggleBtn.style.display = 'none';
+      if (vfPanel) vfPanel.style.display = 'flex';
+    });
+    document.body.appendChild(vfToggleBtn);
+  } else {
+    vfToggleBtn.style.display = '';
+  }
+}
+
+function panelLog(text, color = '#a3e635') {
+  if (!vfLogArea) return;
+  const line = document.createElement('div');
+  line.style.color = color;
+  const t = new Date().toTimeString().slice(0, 8);
+  line.textContent = `[${t}] ${text}`;
+  vfLogArea.appendChild(line);
+  vfLogArea.scrollTop = vfLogArea.scrollHeight;
+  while (vfLogArea.children.length > 100) vfLogArea.removeChild(vfLogArea.firstChild);
+}
+
+function panelSetStats(count, target) {
+  const el = document.getElementById('vf-stats');
+  if (el) el.textContent = `${count} / ${target}`;
+  const bar = document.getElementById('vf-bar');
+  if (bar) bar.style.width = `${Math.min((count / Math.max(target, 1)) * 100, 100)}%`;
+}
+
 // ── 메시지 수신 ───────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'ping') {
@@ -44,6 +173,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'stopCollect') {
     collectRunning = false;
     collectPaused  = false;
+    panelLog('⏹ 수집 중지됨', '#f59e0b');
     chrome.runtime.sendMessage({ action: 'closeCheckWindow' });
   }
   if (msg.action === 'publishPost') {
@@ -55,6 +185,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 async function startCollecting() {
   collectRunning = true;
   const { minViews, targetCount, delay } = collectConfig;
+
+  // 페이지 패널 초기화
+  createPanel();
+  panelLog(`수집 시작! 최소 ${minViews.toLocaleString()}회 · 목표 ${targetCount}개`, '#fff');
+  panelSetStats(0, targetCount);
 
   // 기존 수집 데이터 로드
   const stored = await chrome.storage.local.get('collectedPosts');
@@ -76,23 +211,30 @@ async function startCollecting() {
 
       const views = typeof data.views === 'number' ? data.views : parseViews(String(data.views));
       if (views < minViews) {
+        panelLog(`✗ @${data.author || '?'} — ${views > 0 ? views.toLocaleString() + '회' : '조회수 없음'}`, '#ef4444');
         chrome.runtime.sendMessage({ action: 'collectSkipped', views });
         continue;
       }
       chrome.runtime.sendMessage({ action: 'collectFound', author: data.author, views });
+      panelLog(`✓ @${data.author} — ${views.toLocaleString()}회`, '#a3e635');
 
       // 중복 제거
-      if (collectedPosts.some(p => p.postUrl === data.postUrl)) continue;
+      if (collectedPosts.some(p => p.postUrl === data.postUrl)) {
+        panelLog('⧖ 중복 건너뜀', '#6b7280');
+        continue;
+      }
 
       // 피드에서 게시물 박스 캡처 (viral-pick 방식: 스크롤 → 탭 캡처 → 크롭)
       const captureFilename = await capturePostInFeed(el, data.author, views, nextIndex);
       if (captureFilename) {
         chrome.runtime.sendMessage({ action: 'captureSaved', filename: captureFilename });
+        panelLog(`📸 ${captureFilename.split('/').pop()}`, '#60a5fa');
       }
 
       collectedPosts.push({ ...data, views, captureFilename });
       await chrome.storage.local.set({ collectedPosts });
 
+      panelSetStats(collectedPosts.length, targetCount);
       chrome.runtime.sendMessage({
         action: 'collectProgress',
         count: collectedPosts.length,
@@ -112,6 +254,8 @@ async function startCollecting() {
 
   if (collectRunning) {
     collectRunning = false;
+    panelLog(`✅ 수집 완료! ${collectedPosts.length}개`, '#fff');
+    panelSetStats(collectedPosts.length, targetCount);
     chrome.runtime.sendMessage({ action: 'collectDone', count: collectedPosts.length });
     chrome.runtime.sendMessage({ action: 'closeCheckWindow' });
   }
