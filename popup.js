@@ -209,10 +209,22 @@ chrome.runtime.onMessage.addListener(msg => {
   if (msg.action === 'collectSkipped') {
     addLog(`건너뜀 — 조회수 부족 (${msg.views})`, 'dim');
   }
+  if (msg.action === 'collectSessionDir') {
+    // 세션 폴더를 폴더 경로 표시에 반영
+    const pathEl = document.querySelector('.folder-path');
+    if (pathEl) {
+      const sub = msg.dir.replace('viral-fit_captures/', '');
+      pathEl.textContent = `viral-fit_captures / ${sub}`;
+    }
+    addLog(`📁 저장 폴더: ${msg.dir}`, 'dim');
+    return;
+  }
   if (msg.action === 'collectDone') {
     setProgress('수집 완료!', msg.count, msg.count, `${msg.count}개 저장됨`);
     addLog(`수집 완료! 총 ${msg.count}개 저장`, 'ok');
     resetCollectButtons();
+    const pathEl = document.querySelector('.folder-path');
+    if (pathEl) pathEl.textContent = 'Downloads / viral-fit_captures';
     chrome.storage.local.get('collectedPosts', ({ collectedPosts = [] }) => renderTable(collectedPosts));
     setTimeout(() => window.close(), 1500);
   }

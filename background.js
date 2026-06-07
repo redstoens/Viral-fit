@@ -279,6 +279,7 @@ const VALID_ACTIONS = new Set([
   'generateText', 'generateImage', 'fetchImageAsDataUrl',
   'schedulePost', 'updateQueueStatus',
   'getViewCount', 'captureTab', 'download', 'closeCheckWindow', 'logMsg',
+  'collectSessionDir',
 ]);
 
 const CAPTURE_FOLDER = 'viral-fit_captures';
@@ -347,8 +348,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       else if (msg.action === 'logMsg') {
         // popup이 열려 있으면 로그 전달
-        const views = await chrome.runtime.sendMessage({ action: 'popupLog', text: msg.text })
-          .catch(() => {});
+        await chrome.runtime.sendMessage({ action: 'popupLog', text: msg.text }).catch(() => {});
+        sendResponse({ ok: true });
+      }
+
+      else if (msg.action === 'collectSessionDir') {
+        // content.js → background → popup 포워딩
+        await chrome.runtime.sendMessage({ action: 'collectSessionDir', dir: msg.dir }).catch(() => {});
         sendResponse({ ok: true });
       }
 

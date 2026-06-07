@@ -1,9 +1,21 @@
 // Viral-fit — Content Script (Threads DOM 조작)
 
-let collectRunning = false;
-let collectPaused  = false;
-let collectedPosts = [];
-let collectConfig  = {};
+let collectRunning     = false;
+let collectPaused      = false;
+let collectedPosts     = [];
+let collectConfig      = {};
+let collectSessionDir  = '';   // 세션 시작 시각 기반 캡처 저장 폴더
+
+function makeSessionDir() {
+  const n  = new Date();
+  const yy = n.getFullYear();
+  const mo = String(n.getMonth() + 1).padStart(2, '0');
+  const dd = String(n.getDate()).padStart(2, '0');
+  const hh = String(n.getHours()).padStart(2, '0');
+  const mi = String(n.getMinutes()).padStart(2, '0');
+  const ss = String(n.getSeconds()).padStart(2, '0');
+  return `viral-fit_captures/${yy}-${mo}-${dd}_${hh}-${mi}-${ss}`;
+}
 
 // ── GraphQL 조회수 캐시 ───────────────────────────────────
 // inject.js(MAIN world)가 fetch를 가로채서 CustomEvent로 전달
@@ -195,10 +207,17 @@ async function startCollecting() {
   collectRunning = true;
   const { minViews, targetCount, delay } = collectConfig;
 
+  // 세션 저장 폴더 (날짜_시각 기반)
+  collectSessionDir = makeSessionDir();
+
   // 페이지 패널 초기화
   createPanel();
   panelLog(`수집 시작! 최소 ${minViews.toLocaleString()}회 · 목표 ${targetCount}개`, '#fff');
+  panelLog(`📁 ${collectSessionDir}`, '#6b7280');
   panelSetStats(0, targetCount);
+
+  // 팝업에 세션 폴더 알림
+  chrome.runtime.sendMessage({ action: 'collectSessionDir', dir: collectSessionDir });
 
   // 기존 수집 데이터 로드
   const stored = await chrome.storage.local.get('collectedPosts');
@@ -395,7 +414,8 @@ async function capturePostInFeed(container, author, views, idx) {
 
     const safeAuthor = (author || 'unknown').replace(/[^a-zA-Z0-9가-힣_@]/g, '').slice(0, 20);
     const viewStr    = String(views).replace(/,/g, '');
-    const filename   = `viral-fit_captures/${String(idx).padStart(3, '0')}_${safeAuthor}_${viewStr}views.png`;
+    const folder     = collectSessionDir || 'viral-fit_captures';
+    const filename   = `${folder}/${String(idx).padStart(3, '0')}_${safeAuthor}_${viewStr}views.png`;
 
     chrome.runtime.sendMessage({ action: 'download', dataUrl: cropped, filename });
     return filename;
