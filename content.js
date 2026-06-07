@@ -71,7 +71,7 @@ async function startCollecting() {
       if (!collectRunning) break;
 
       const nextIndex = collectedPosts.length + 1;
-      const data = await extractPostData(el, minViews, nextIndex);
+      const data = await extractPostData(el);
       if (!data) continue;
 
       const views = typeof data.views === 'number' ? data.views : parseViews(String(data.views));
@@ -84,13 +84,14 @@ async function startCollecting() {
       // 중복 제거
       if (collectedPosts.some(p => p.postUrl === data.postUrl)) continue;
 
-      collectedPosts.push({ ...data, views });
-      await chrome.storage.local.set({ collectedPosts });
-
-      // 백그라운드 탭 캡처 결과 (background.js에서 이미 저장 완료)
-      if (data.captureFilename) {
-        chrome.runtime.sendMessage({ action: 'captureSaved', filename: data.captureFilename });
+      // 피드에서 게시물 박스 캡처 (viral-pick 방식: 스크롤 → 탭 캡처 → 크롭)
+      const captureFilename = await capturePostInFeed(el, data.author, views, nextIndex);
+      if (captureFilename) {
+        chrome.runtime.sendMessage({ action: 'captureSaved', filename: captureFilename });
       }
+
+      collectedPosts.push({ ...data, views, captureFilename });
+      await chrome.storage.local.set({ collectedPosts });
 
       chrome.runtime.sendMessage({
         action: 'collectProgress',
@@ -123,7 +124,7 @@ function findPostElements() {
   ));
 }
 
-async function extractPostData(el, minViews = 0, captureIndex = 0) {
+async function extractPostData(el) {
   try {
     // 텍스트 추출 — 앵커(username 링크) 내부 요소는 제외
     let textEl = null;
@@ -160,10 +161,8 @@ async function extractPostData(el, minViews = 0, captureIndex = 0) {
 
     if (!postUrl) return null; // URL 없으면 게시물 아님
 
-    // 조회수 + 캡처 (기준 충족 시 백그라운드 탭에서 바로 캡처)
-    const { views, captureFilename } = await getViewCount(el, postUrl, minViews, captureIndex, author);
-
-    return { text, author, imageUrl, postUrl, views, captureFilename };
+    const views = await getViewCount(el, postUrl);
+    return { text, author, imageUrl, postUrl, views };
   } catch {
     return null;
   }
@@ -189,40 +188,72 @@ function extractViewsFromText(text) {
   return 0;
 }
 
-async function getViewCount(el, postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
+async function getViewCount(el, postUrl) {
   // ── Layer 1: 피드 DOM 텍스트 직접 읽기 ──────────────────
   const inFeed = extractViewsFromText(el.innerText || '');
-  if (inFeed > 0) return { views: inFeed, captureFilename: null };
+  if (inFeed > 0) return inFeed;
 
   // ── Layer 2: GraphQL 캐시 (빠름·정확, 탭 없음) ───────────
-  // URL에서 post code 추출: /@user/post/CODE
   const postCode = postUrl.split('/post/')[1]?.split(/[?/#]/)[0];
   if (postCode && viewCountCache.has(postCode)) {
     const views = viewCountCache.get(postCode);
-    chrome.runtime.sendMessage({
-      action: 'logMsg',
-      text: `[캐시] ${postCode}: ${views.toLocaleString()}회`,
-    });
-    // 캐시 히트는 별도 탭 없음 → captureFilename null
-    return { views, captureFilename: null };
+    chrome.runtime.sendMessage({ action: 'logMsg', text: `[캐시] ${postCode}: ${views.toLocaleString()}회` });
+    return views;
   }
 
-  // ── Layer 3: 백그라운드 탭 (캐시 미스 fallback) ──────────
-  if (!postUrl) return { views: 0, captureFilename: null };
-  chrome.runtime.sendMessage({
-    action: 'logMsg',
-    text: `[탭] 확인 중: ${postUrl.split('/').pop()}`,
-  });
+  // ── Layer 3: 영구 팝업 창 (캐시 미스 fallback) ───────────
+  if (!postUrl) return 0;
+  chrome.runtime.sendMessage({ action: 'logMsg', text: `[탭] 확인: ${postUrl.split('/').pop()}` });
+  const result = await chrome.runtime.sendMessage({ action: 'getViewCount', postUrl });
+  return result?.views || 0;
+}
 
-  const result = await chrome.runtime.sendMessage({
-    action: 'getViewCount',
-    postUrl,
-    minViews,
-    captureIndex,
-    author,
-  });
+// ── 피드에서 게시물 박스 캡처 (viral-pick 방식) ──────────
+async function capturePostInFeed(container, author, views, idx) {
+  try {
+    // 1. 게시물을 화면 중앙으로 스크롤
+    container.scrollIntoView({ behavior: 'instant', block: 'center' });
+    await new Promise(r => setTimeout(r, 300));
 
-  return result || { views: 0, captureFilename: null };
+    // 2. 피드 탭 전체 캡처 요청 (background → captureTab API)
+    const dataUrl = await chrome.runtime.sendMessage({ action: 'captureTab' });
+    if (!dataUrl) return null;
+
+    // 3. 게시물 컨테이너 좌표로 크롭
+    const rect = container.getBoundingClientRect();
+    const dpr  = window.devicePixelRatio || 1;
+    const cropped = await cropImage(dataUrl, {
+      x: Math.max(0, rect.left * dpr),
+      y: Math.max(0, rect.top  * dpr),
+      w: rect.width  * dpr,
+      h: rect.height * dpr,
+    });
+
+    // 4. 파일명 생성 및 다운로드 요청
+    const safeAuthor = (author || 'unknown').replace(/[^a-zA-Z0-9가-힣_@]/g, '').slice(0, 20);
+    const viewStr    = String(views).replace(/,/g, '');
+    const filename   = `viral-fit_captures/${String(idx).padStart(3, '0')}_${safeAuthor}_${viewStr}views.png`;
+
+    chrome.runtime.sendMessage({ action: 'download', dataUrl: cropped, filename });
+    return filename;
+  } catch {
+    return null;
+  }
+}
+
+function cropImage(dataUrl, { x, y, w, h }) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(dataUrl); // 크롭 실패 시 전체 이미지
+    img.src = dataUrl;
+  });
 }
 
 function parseViews(viewStr) {

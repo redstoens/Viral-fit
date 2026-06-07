@@ -207,12 +207,11 @@ function getViewCountScript() {
   });
 }
 
-// ── 조회수 확인 + 기준 충족 시 캡처 ─────────────────────────
-async function getViewCountFromUrl(postUrl, minViews = 0, captureIndex = 0, author = 'unknown') {
+// ── 조회수 확인 (캡처는 content.js에서 담당) ────────────────
+async function getViewCountFromUrl(postUrl) {
   try {
     const tabId = await getOrCreateCheckWindow(postUrl);
 
-    // 페이지 로딩 완료 대기 (최대 20초)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('timeout')), 20000);
       const listener = (tid, info) => {
@@ -224,53 +223,17 @@ async function getViewCountFromUrl(postUrl, minViews = 0, captureIndex = 0, auth
       chrome.tabs.onUpdated.addListener(listener);
     });
 
-    // 폴링 스크립트 주입: "활동 보기" 클릭 → 조회수 읽기
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: getViewCountScript(),
     });
 
     const viewText = results?.[0]?.result || null;
-    if (!viewText) return { views: 0, captureFilename: null };
-
-    const views = parseInt(viewText.replace(/,/g, ''), 10);
-
-    // 기준 충족 시 팝업 창 탭 캡처
-    let captureFilename = null;
-    if (views >= minViews && minViews > 0) {
-      captureFilename = await captureTab(tabId, captureIndex, author);
-    }
-
-    return { views, captureFilename };
+    if (!viewText) return { views: 0 };
+    return { views: parseInt(viewText.replace(/,/g, ''), 10) };
 
   } catch {
-    return { views: 0, captureFilename: null };
-  }
-}
-
-// ── 탭 캡처 및 저장 ──────────────────────────────────────
-async function captureTab(tabId, index, author) {
-  const timestamp  = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const safeAuthor = (author || 'unknown').replace(/[^a-zA-Z0-9가-힣_]/g, '_').slice(0, 20);
-  const baseName   = `${String(index).padStart(3, '0')}_${safeAuthor}_${timestamp}`;
-  const filename   = `${CAPTURE_FOLDER}/${baseName}.png`;
-
-  try {
-    // Chrome 116+: captureTab API — 비활성 탭도 캡처 가능
-    const dataUrl = await chrome.tabs.captureTab(tabId, { format: 'png' });
-    chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
-    return filename;
-  } catch {
-    // fallback: 탭을 잠깐 활성화해서 캡처
-    try {
-      await chrome.tabs.update(tabId, { active: true });
-      await new Promise(r => setTimeout(r, 600));
-      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-      chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
-      return filename;
-    } catch {
-      return null;
-    }
+    return { views: 0 };
   }
 }
 
@@ -314,8 +277,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // ── 메시지 핸들러 ─────────────────────────────────────────
 const VALID_ACTIONS = new Set([
   'generateText', 'generateImage', 'fetchImageAsDataUrl',
-  'schedulePost', 'updateQueueStatus', 'saveCapture',
-  'getViewCount', 'closeCheckWindow', 'logMsg',
+  'schedulePost', 'updateQueueStatus',
+  'getViewCount', 'captureTab', 'download', 'closeCheckWindow', 'logMsg',
 ]);
 
 const CAPTURE_FOLDER = 'viral-fit_captures';
@@ -350,8 +313,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       else if (msg.action === 'getViewCount') {
-        const result = await getViewCountFromUrl(msg.postUrl, msg.minViews, msg.captureIndex, msg.author);
-        sendResponse(result); // { views, captureFilename }
+        const result = await getViewCountFromUrl(msg.postUrl);
+        sendResponse(result); // { views }
+      }
+
+      else if (msg.action === 'captureTab') {
+        // viral-pick 방식: content.js(피드 탭)에서 요청 → 피드 탭 전체 캡처 후 dataUrl 반환
+        const senderTab = sender.tab;
+        if (!senderTab) { sendResponse(null); return; }
+        try {
+          // Chrome 116+: captureTab — 탭을 활성화하지 않고 캡처 가능
+          const dataUrl = await chrome.tabs.captureTab(senderTab.id, { format: 'png' });
+          sendResponse(dataUrl);
+        } catch {
+          // fallback: 창 포커스 후 captureVisibleTab
+          try {
+            await chrome.windows.update(senderTab.windowId, { focused: true });
+            await new Promise(r => setTimeout(r, 200));
+            const dataUrl = await chrome.tabs.captureVisibleTab(senderTab.windowId, { format: 'png', quality: 100 });
+            sendResponse(dataUrl);
+          } catch {
+            sendResponse(null);
+          }
+        }
+      }
+
+      else if (msg.action === 'download') {
+        await chrome.downloads.download({ url: msg.dataUrl, filename: msg.filename, saveAs: false });
+        sendResponse({ ok: true });
       }
 
       else if (msg.action === 'closeCheckWindow') {
