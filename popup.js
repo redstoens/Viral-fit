@@ -33,8 +33,25 @@ const collectedListEl = document.getElementById('collectedList');
 let isCollecting = false;
 
 async function getThreadsTab() {
-  const tabs = await chrome.tabs.query({ url: 'https://www.threads.net/*' });
-  return tabs.length ? tabs[0] : null;
+  // URL 패턴 대신 전체 탭 조회 후 직접 필터 (환경 차이 대응)
+  const tabs = await chrome.tabs.query({});
+  return tabs.find(t => t.url && t.url.includes('threads.net')) || null;
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    // content script 살아있는지 확인
+    await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tabId, { action: 'ping' }, (res) => {
+        if (chrome.runtime.lastError || !res) reject();
+        else resolve();
+      });
+    });
+  } catch {
+    // 확장 설치 전 열린 탭 등 — content script 수동 주입
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await new Promise(r => setTimeout(r, 300));
+  }
 }
 
 document.getElementById('btnStartCollect').addEventListener('click', async () => {
@@ -43,6 +60,9 @@ document.getElementById('btnStartCollect').addEventListener('click', async () =>
     setStatus(collectStatus, 'Threads(threads.net)를 먼저 열어주세요.', 'error');
     return;
   }
+
+  setStatus(collectStatus, '연결 확인 중...');
+  await ensureContentScript(tab.id);
 
   isCollecting = true;
   document.getElementById('btnStartCollect').disabled = true;
@@ -384,6 +404,8 @@ document.getElementById('btnPublishNow').addEventListener('click', async () => {
     alert('Threads(threads.net)를 먼저 열어주세요.');
     return;
   }
+
+  await ensureContentScript(tab.id);
 
   const item = {
     id: Date.now().toString(),

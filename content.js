@@ -6,6 +6,10 @@ let collectConfig = {};
 
 // ── 메시지 수신 ───────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === 'ping') {
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.action === 'startCollect') {
     collectConfig = msg.config;
     startCollecting();
