@@ -354,9 +354,11 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
   if (!apiKey) { showToast('설정 탭에서 API 키를 먼저 입력하세요.', 'warn'); return; }
 
   chrome.storage.local.get('collectedPosts', async ({ collectedPosts = [] }) => {
-    const idx   = document.getElementById('sourcePost').value;
-    const extra = document.getElementById('userPrompt').value;
-    const tone  = document.getElementById('toneSelect').value;
+    const idx     = document.getElementById('sourcePost').value;
+    const extra   = document.getElementById('userPrompt').value.trim();
+    const tone    = document.getElementById('toneSelect').value;
+    const intent  = document.getElementById('intentSelect').value;
+    const keyword = document.getElementById('keywordInput').value.trim();
 
     let analysisText;
     if (idx === '') {
@@ -369,10 +371,21 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       analysisText = `@${p.author} (조회수 ${p.views})\n${p.text}`;
     }
 
-    const toneStr = tone ? `어조: ${tone}` : '';
-    const lengthGuide = extra ? '' : '글자 수: 500자 이내';
-    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 규칙: 1) 원본과 내용이 겹치지 않게 작성, 2) 자연스럽고 공감 가는 한국어, 3) 해시태그 금지, 4) 반드시 완성된 문장으로 끝내기, 5) [작성 조건]에 글자 수가 명시된 경우 그 범위를 절대 초과하지 말 것, 6) 추가 요구사항은 최우선으로 따를 것.`;
-    const conditions = [toneStr, lengthGuide, extra ? `추가 요구사항: ${extra}` : ''].filter(Boolean).join('\n');
+    const INTENT_GUIDE = {
+      '일상':     '독자가 공감하고 친근하게 느낄 수 있는 일상적인 이야기 형식으로 작성하세요. 가볍고 자연스럽게.',
+      '바이럴':   '강렬한 첫 문장(훅)으로 시작하고, 감정을 자극하며 공유·저장 욕구를 높이는 구조로 작성하세요.',
+      '마케팅':   '제품·서비스의 가치를 자연스럽게 녹여내고, 행동을 유도하는 CTA(call-to-action)로 마무리하세요.',
+      '정보공유': '유용한 정보를 명확하고 읽기 쉽게 정리하세요. 번호 목록이나 짧은 단락을 활용해도 좋습니다.',
+      '브랜드홍보': '브랜드 신뢰감과 전문성을 자연스럽게 드러내되 광고처럼 보이지 않도록 스토리텔링 형식으로 작성하세요.',
+      '커뮤니티': '질문이나 의견을 유도해 댓글 참여를 이끄는 형식으로 작성하세요.',
+    };
+
+    const toneStr    = tone    ? `어조: ${tone}` : '';
+    const intentStr  = intent  ? `작성 의도: ${intent}용 — ${INTENT_GUIDE[intent]}` : '';
+    const keywordStr = keyword ? `반드시 포함할 키워드: ${keyword}` : '';
+    const lengthGuide = extra  ? '' : '글자 수: 500자 이내';
+    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 규칙: 1) 원본과 내용이 겹치지 않게 작성, 2) 자연스럽고 공감 가는 한국어, 3) 해시태그 금지, 4) 반드시 완성된 문장으로 끝내기, 5) 글자 수가 명시된 경우 절대 초과하지 말 것, 6) 키워드가 있으면 글 안에 자연스럽게 녹여낼 것, 7) 추가 요구사항은 최우선으로 따를 것.`;
+    const conditions = [intentStr, toneStr, keywordStr, lengthGuide, extra ? `추가 요구사항: ${extra}` : ''].filter(Boolean).join('\n');
     const userContent  = `다음 바이럴 게시물을 참고해서 새로운 Threads 게시글을 작성해주세요.\n\n${analysisText}${conditions ? `\n\n[작성 조건]\n${conditions}` : ''}`;
 
     document.getElementById('generateLoading').classList.remove('hidden');

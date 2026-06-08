@@ -125,6 +125,25 @@
     </div>
   </div>
 
+  <div class="section two-col">
+    <div>
+      <label class="field-label">작성 의도</label>
+      <select id="intentSelect">
+        <option value="">선택 안함</option>
+        <option value="일상">일상용</option>
+        <option value="바이럴">바이럴용</option>
+        <option value="마케팅">마케팅용</option>
+        <option value="정보공유">정보 공유용</option>
+        <option value="브랜드홍보">브랜드 홍보용</option>
+        <option value="커뮤니티">커뮤니티 소통용</option>
+      </select>
+    </div>
+    <div>
+      <label class="field-label">키워드 <span class="hint">선택, 쉼표로 구분</span></label>
+      <input type="text" id="keywordInput" placeholder="예: 다이어트, 건강, 습관" />
+    </div>
+  </div>
+
   <div class="section">
     <label class="field-label">추가 지시사항 <span class="hint">선택</span></label>
     <textarea id="userPrompt" rows="2" placeholder="예: 마지막에 질문 추가, 500자 이내"></textarea>
