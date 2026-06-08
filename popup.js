@@ -371,7 +371,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
 
     const toneStr = tone ? `어조: ${tone}` : '';
     const lengthGuide = extra ? '' : '글자 수: 500자 이내';
-    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 원본과 내용이 겹치지 않게, 자연스럽고 공감 가는 한국어로 해시태그 없이 작성하세요. 추가 요구사항이 있으면 그것을 최우선으로 따르세요.`;
+    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 규칙: 1) 원본과 내용이 겹치지 않게 작성, 2) 자연스럽고 공감 가는 한국어, 3) 해시태그 금지, 4) 반드시 완성된 문장으로 끝내기, 5) [작성 조건]에 글자 수가 명시된 경우 그 범위를 절대 초과하지 말 것, 6) 추가 요구사항은 최우선으로 따를 것.`;
     const conditions = [toneStr, lengthGuide, extra ? `추가 요구사항: ${extra}` : ''].filter(Boolean).join('\n');
     const userContent  = `다음 바이럴 게시물을 참고해서 새로운 Threads 게시글을 작성해주세요.\n\n${analysisText}${conditions ? `\n\n[작성 조건]\n${conditions}` : ''}`;
 
@@ -384,9 +384,12 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       if (result.error) throw new Error(result.error);
       const ta = document.getElementById('generatedText');
       ta.value = result.text;
-      document.getElementById('generatedSection').classList.remove('hidden');
       ta.style.height = 'auto';
-      ta.style.height = ta.scrollHeight + 'px';
+      document.getElementById('generatedSection').classList.remove('hidden');
+      requestAnimationFrame(() => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+      });
     } catch (e) {
       document.getElementById('generateLoading').classList.add('hidden');
       showToast('생성 실패: ' + e.message, 'err', 5000);

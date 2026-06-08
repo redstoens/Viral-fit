@@ -17,7 +17,12 @@ async function generateWithGemini(apiKey, systemPrompt, userContent) {
     throw new Error(err.error?.message || `HTTP ${res.status}`);
   }
   const data = await res.json();
-  return data.candidates[0].content.parts[0].text;
+  const candidate = data.candidates?.[0];
+  if (!candidate) throw new Error('응답이 비어 있습니다.');
+  const finishReason = candidate.finishReason;
+  if (finishReason === 'MAX_TOKENS') throw new Error('글이 너무 길어 잘렸습니다. 추가 지시사항에서 글자 수를 줄여보세요.');
+  if (finishReason === 'SAFETY') throw new Error('안전 정책에 의해 생성이 중단됐습니다. 다른 주제로 시도해보세요.');
+  return candidate.content.parts[0].text;
 }
 
 async function generateWithGPT4(apiKey, systemPrompt, userContent) {
