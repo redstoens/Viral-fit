@@ -380,13 +380,21 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       const result = await chrome.runtime.sendMessage({ action:'generateText', model, apiKey, systemPrompt, userContent });
       document.getElementById('generateLoading').classList.add('hidden');
       if (result.error) throw new Error(result.error);
-      document.getElementById('generatedText').value = result.text;
+      const ta = document.getElementById('generatedText');
+      ta.value = result.text;
       document.getElementById('generatedSection').classList.remove('hidden');
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
     } catch (e) {
       document.getElementById('generateLoading').classList.add('hidden');
       showToast('생성 실패: ' + e.message, 'err', 5000);
     }
   });
+});
+
+document.getElementById('generatedText').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = this.scrollHeight + 'px';
 });
 
 document.getElementById('btnRegenerate').addEventListener('click', () =>
