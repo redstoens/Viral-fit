@@ -89,7 +89,7 @@ async function ensureContentScript(tabId) {
 
 async function getSettings() {
   return new Promise(resolve =>
-    chrome.storage.local.get(['claudeApiKey','openaiApiKey','defaultModel','publishDelay'], resolve)
+    chrome.storage.local.get(['geminiApiKey','openaiApiKey','defaultModel','publishDelay'], resolve)
   );
 }
 
@@ -350,7 +350,7 @@ function refreshSourceSelect() {
 document.getElementById('btnGenerate').addEventListener('click', async () => {
   const settings = await getSettings();
   const model    = document.getElementById('aiModel').value;
-  const apiKey   = model === 'claude' ? settings.claudeApiKey : settings.openaiApiKey;
+  const apiKey   = model === 'gemini' ? settings.geminiApiKey : settings.openaiApiKey;
   if (!apiKey) { showToast('설정 탭에서 API 키를 먼저 입력하세요.', 'warn'); return; }
 
   chrome.storage.local.get('collectedPosts', async ({ collectedPosts = [] }) => {
@@ -571,9 +571,9 @@ function renderQueue() {
 
 // ── 설정 탭 ──────────────────────────────────────────────
 chrome.storage.local.get(
-  ['claudeApiKey','openaiApiKey','defaultModel','publishDelay'],
-  ({ claudeApiKey='', openaiApiKey='', defaultModel='claude', publishDelay=30 }) => {
-    document.getElementById('claudeApiKey').value  = claudeApiKey;
+  ['geminiApiKey','openaiApiKey','defaultModel','publishDelay'],
+  ({ geminiApiKey='', openaiApiKey='', defaultModel='gemini', publishDelay=30 }) => {
+    document.getElementById('geminiApiKey').value  = geminiApiKey;
     document.getElementById('openaiApiKey').value  = openaiApiKey;
     document.getElementById('defaultModel').value  = defaultModel;
     document.getElementById('publishDelay').value  = publishDelay;
@@ -582,7 +582,7 @@ chrome.storage.local.get(
 
 document.getElementById('btnSaveSettings').addEventListener('click', () => {
   const data = {
-    claudeApiKey:  document.getElementById('claudeApiKey').value.trim(),
+    geminiApiKey:  document.getElementById('geminiApiKey').value.trim(),
     openaiApiKey:  document.getElementById('openaiApiKey').value.trim(),
     defaultModel:  document.getElementById('defaultModel').value,
     publishDelay:  parseInt(document.getElementById('publishDelay').value),

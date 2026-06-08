@@ -1,20 +1,15 @@
 // ViralPick Pro — Background Service Worker
 
 // ── AI 텍스트 생성 ────────────────────────────────────────
-async function generateWithClaude(apiKey, systemPrompt, userContent) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+async function generateWithGemini(apiKey, systemPrompt, userContent) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-opus-4-8',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userContent }],
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ parts: [{ text: userContent }] }],
+      generationConfig: { maxOutputTokens: 1024 },
     }),
   });
   if (!res.ok) {
@@ -22,7 +17,7 @@ async function generateWithClaude(apiKey, systemPrompt, userContent) {
     throw new Error(err.error?.message || `HTTP ${res.status}`);
   }
   const data = await res.json();
-  return data.content[0].text;
+  return data.candidates[0].content.parts[0].text;
 }
 
 async function generateWithGPT4(apiKey, systemPrompt, userContent) {
@@ -293,8 +288,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     try {
       if (msg.action === 'generateText') {
-        const text = msg.model === 'claude'
-          ? await generateWithClaude(msg.apiKey, msg.systemPrompt, msg.userContent)
+        const text = msg.model === 'gemini'
+          ? await generateWithGemini(msg.apiKey, msg.systemPrompt, msg.userContent)
           : await generateWithGPT4(msg.apiKey, msg.systemPrompt, msg.userContent);
         sendResponse({ text });
       }

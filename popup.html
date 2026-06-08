@@ -109,7 +109,7 @@
     <div>
       <label class="field-label">AI 모델</label>
       <select id="aiModel">
-        <option value="claude">Claude (Anthropic)</option>
+        <option value="gemini">Gemini 1.5 Flash (Google)</option>
         <option value="gpt4">GPT-4o (OpenAI)</option>
       </select>
     </div>
@@ -200,18 +200,18 @@
 <div class="panel" id="tab-settings">
 
   <div class="section">
-    <label class="field-label">Anthropic API 키 <span class="hint">Claude</span></label>
-    <input type="password" id="claudeApiKey" placeholder="sk-ant-..." />
+    <label class="field-label">Google Gemini API 키 <span class="hint">텍스트 생성</span></label>
+    <input type="password" id="geminiApiKey" placeholder="AIza..." />
   </div>
   <div class="section">
-    <label class="field-label">OpenAI API 키 <span class="hint">GPT-4 / DALL-E</span></label>
+    <label class="field-label">OpenAI API 키 <span class="hint">GPT-4o / DALL-E</span></label>
     <input type="password" id="openaiApiKey" placeholder="sk-..." />
   </div>
   <div class="section two-col">
     <div>
       <label class="field-label">기본 AI 모델</label>
       <select id="defaultModel">
-        <option value="claude">Claude</option>
+        <option value="gemini">Gemini</option>
         <option value="gpt4">GPT-4o</option>
       </select>
     </div>
@@ -226,7 +226,7 @@
 
   <div class="info-box section">
     <p class="info-title">💡 API 키 발급</p>
-    <p>• Claude: console.anthropic.com</p>
+    <p>• Gemini: aistudio.google.com → "Get API key" (무료)</p>
     <p>• OpenAI: platform.openai.com/api-keys</p>
     <p class="info-note">DALL-E 이미지 생성에는 OpenAI 키가 필요합니다.</p>
   </div>
