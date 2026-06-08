@@ -52,6 +52,16 @@ document.getElementById('btnClearLog').addEventListener('click', () => {
   addLog('로그 초기화됨', 'dim');
 });
 
+// ── 공통 토스트 (alert 대체) ─────────────────────────────
+let _toastTimer = null;
+function showToast(msg, type = 'ok', ms = 3500) {
+  const el = document.getElementById('mainToast');
+  el.textContent = msg;
+  el.className   = `main-toast ${type}`;
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
 // ── Threads 탭 유틸 ──────────────────────────────────────
 function isThreadsUrl(url) {
   return url && (url.includes('threads.net') || url.includes('threads.com'));
@@ -341,7 +351,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
   const settings = await getSettings();
   const model    = document.getElementById('aiModel').value;
   const apiKey   = model === 'claude' ? settings.claudeApiKey : settings.openaiApiKey;
-  if (!apiKey) { alert('설정 탭에서 API 키를 먼저 입력하세요.'); return; }
+  if (!apiKey) { showToast('설정 탭에서 API 키를 먼저 입력하세요.', 'warn'); return; }
 
   chrome.storage.local.get('collectedPosts', async ({ collectedPosts = [] }) => {
     const idx   = document.getElementById('sourcePost').value;
@@ -350,7 +360,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
 
     let analysisText;
     if (idx === '') {
-      if (!collectedPosts.length) { alert('먼저 게시물을 수집하세요.'); return; }
+      if (!collectedPosts.length) { showToast('먼저 게시물을 수집하세요.', 'warn'); return; }
       analysisText = collectedPosts.slice(0,10).map((p,i) =>
         `[${i+1}] @${p.author} (조회수 ${p.views})\n${p.text}`
       ).join('\n\n');
@@ -374,7 +384,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       document.getElementById('generatedSection').classList.remove('hidden');
     } catch (e) {
       document.getElementById('generateLoading').classList.add('hidden');
-      alert('생성 실패: ' + e.message);
+      showToast('생성 실패: ' + e.message, 'err', 5000);
     }
   });
 });
@@ -409,7 +419,7 @@ document.getElementById('imageFileInput').addEventListener('change', e => {
 document.getElementById('btnImageViral').addEventListener('click', () => {
   chrome.storage.local.get('collectedPosts', ({ collectedPosts = [] }) => {
     const withImg = collectedPosts.filter(p => p.imageUrl);
-    if (!withImg.length) { alert('이미지가 있는 게시물이 없습니다.'); return; }
+    if (!withImg.length) { showToast('이미지가 있는 게시물이 없습니다.', 'warn'); return; }
     const list = withImg.slice(0,5).map((p,i) => `${i+1}. @${p.author}`).join('\n');
     const choice = prompt(`이미지 선택 (번호):\n${list}`);
     if (!choice) return;
@@ -427,14 +437,14 @@ document.getElementById('btnImageDalle').addEventListener('click', () =>
 
 document.getElementById('btnGenerateImage').addEventListener('click', async () => {
   const settings = await getSettings();
-  if (!settings.openaiApiKey) { alert('설정에서 OpenAI API 키를 입력하세요.'); return; }
+  if (!settings.openaiApiKey) { showToast('설정에서 OpenAI API 키를 입력하세요.', 'warn'); return; }
   const promptText = document.getElementById('dallePrompt').value.trim();
-  if (!promptText) { alert('이미지 설명을 입력하세요.'); return; }
+  if (!promptText) { showToast('이미지 설명을 입력하세요.', 'warn'); return; }
   const loading = document.getElementById('dalleLoading');
   loading.classList.remove('hidden');
   const result = await chrome.runtime.sendMessage({ action:'generateImage', apiKey:settings.openaiApiKey, prompt:promptText, size:document.getElementById('dalleSize').value });
   loading.classList.add('hidden');
-  if (result.error) { alert('이미지 생성 실패: ' + result.error); return; }
+  if (result.error) { showToast('이미지 생성 실패: ' + result.error, 'err', 5000); return; }
   pendingImages.push({ dataUrl:result.dataUrl, mimeType:'image/png' });
   renderPreviews();
   document.getElementById('dallePanel').classList.add('hidden');
@@ -460,11 +470,11 @@ function renderPreviews() {
 
 document.getElementById('btnAddQueue').addEventListener('click', () => {
   const text = document.getElementById('composeText').value.trim();
-  if (!text) { alert('게시글 내용을 입력하세요.'); return; }
+  if (!text) { showToast('게시글 내용을 입력하세요.', 'warn'); return; }
   const scheduleTime = document.getElementById('scheduleTime').value;
-  if (!scheduleTime) { alert('발행 시간을 선택하세요.'); return; }
+  if (!scheduleTime) { showToast('발행 시간을 선택하세요.', 'warn'); return; }
   const scheduledAt = new Date(scheduleTime).getTime();
-  if (scheduledAt <= Date.now()) { alert('미래 시간을 선택하세요.'); return; }
+  if (scheduledAt <= Date.now()) { showToast('미래 시간을 선택하세요.', 'warn'); return; }
   const item = { id: Date.now().toString(), text, images: [...pendingImages], scheduledAt, status: 'pending' };
   chrome.storage.local.get('queue', ({ queue = [] }) => {
     queue.push(item);
@@ -478,9 +488,9 @@ document.getElementById('btnAddQueue').addEventListener('click', () => {
 
 document.getElementById('btnPublishNow').addEventListener('click', async () => {
   const text = document.getElementById('composeText').value.trim();
-  if (!text) { alert('게시글 내용을 입력하세요.'); return; }
+  if (!text) { showToast('게시글 내용을 입력하세요.', 'warn'); return; }
   const tab = await getThreadsTab();
-  if (!tab) { alert('Threads를 먼저 열어주세요.'); return; }
+  if (!tab) { showToast('Threads를 먼저 열어주세요.', 'warn'); return; }
   await ensureContentScript(tab.id);
   const item = { id: Date.now().toString(), text, images: [...pendingImages], scheduledAt: Date.now(), status: 'pending' };
   chrome.tabs.sendMessage(tab.id, { action:'publishPost', item });

@@ -502,6 +502,37 @@ textarea { resize: vertical; }
 .info-box p { font-size: 11px; color: #374151; line-height: 1.7; }
 .info-note  { color: #6b7280; margin-top: 4px; }
 
+/* ── 공통 토스트 (alert 대체) ── */
+.main-toast {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 9999;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  transition: opacity 0.2s;
+}
+.main-toast.err {
+  background: #fff1f2;
+  color: #e11d48;
+  border-color: #fecdd3;
+}
+.main-toast.warn {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.main-toast.hidden { display: none; }
+
 /* ── 토스트 ── */
 .toast {
   text-align: center;
