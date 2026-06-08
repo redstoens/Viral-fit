@@ -9,7 +9,7 @@ async function generateWithGemini(apiKey, systemPrompt, userContent) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ parts: [{ text: userContent }] }],
-      generationConfig: { maxOutputTokens: 1024 },
+      generationConfig: { maxOutputTokens: 4096 },
     }),
   });
   if (!res.ok) {

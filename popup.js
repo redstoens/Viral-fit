@@ -369,9 +369,11 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       analysisText = `@${p.author} (조회수 ${p.views})\n${p.text}`;
     }
 
-    const toneStr = tone ? `${tone} 작성해주세요.` : '';
-    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 원본과 내용이 겹치지 않게, 자연스럽고 공감 가는 한국어로 500자 이내, 해시태그 없이 작성하세요.`;
-    const userContent  = `다음 바이럴 게시물을 참고해서 새로운 Threads 게시글을 작성해주세요.\n\n${analysisText}${toneStr ? `\n\n어조: ${toneStr}` : ''}${extra ? `\n추가 요구사항: ${extra}` : ''}`;
+    const toneStr = tone ? `어조: ${tone}` : '';
+    const lengthGuide = extra ? '' : '글자 수: 500자 이내';
+    const systemPrompt = `당신은 Threads SNS 전문 콘텐츠 작가입니다. 바이럴 게시물의 구조, 어조, 훅, 감정 자극 방식을 분석하고 같은 패턴을 활용해 완전히 새로운 창작 게시물을 작성합니다. 원본과 내용이 겹치지 않게, 자연스럽고 공감 가는 한국어로 해시태그 없이 작성하세요. 추가 요구사항이 있으면 그것을 최우선으로 따르세요.`;
+    const conditions = [toneStr, lengthGuide, extra ? `추가 요구사항: ${extra}` : ''].filter(Boolean).join('\n');
+    const userContent  = `다음 바이럴 게시물을 참고해서 새로운 Threads 게시글을 작성해주세요.\n\n${analysisText}${conditions ? `\n\n[작성 조건]\n${conditions}` : ''}`;
 
     document.getElementById('generateLoading').classList.remove('hidden');
     document.getElementById('generatedSection').classList.add('hidden');
